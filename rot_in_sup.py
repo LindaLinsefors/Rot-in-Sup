@@ -374,6 +374,26 @@ for k in range(z):
         print('x:    ', test_run.x[l,k])
         print('est_x:', test_run.est_x[l,k])
         print()
+
+
+#%% Large test
+#   Large test
+D=1000
+S=5
+T=10000
+L=5
+z=2
+
+smal_test_net = RotInSupNetwork(D,T,S)
+test_run = smal_test_net.run(L,z)
+
+for k in range(z):
+    print(f'\n circuit {k}\n')
+    for l in range(L):
+        print(f'l={l}')
+        print('x:    ', test_run.x[l,k])
+        print('est_x:', test_run.est_x[l,k], '\n')
+        
 # %%
 l=3
 print(f'l={l}')
