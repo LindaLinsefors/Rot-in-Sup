@@ -247,10 +247,6 @@ class SuperpositionNetwork:
         W2[3*D:4*D, 2*D:3*D] = all_rotations[:,:,1,0].t()
         W2[3*D:4*D, 3*D:4*D] = all_rotations[:,:,1,1].t()
 
-        #Bias
-        B = torch.zeros(4*D, device=device)
-        B[2*D:] = 1
-
         #Saving data to network object
         self.device = device
         self.D = D
@@ -263,11 +259,11 @@ class SuperpositionNetwork:
         self.r = r
         self.W1 = W1
         self.W2 = W2
-        self.B = B
 
         #Empty list for storing run data later
         self.runs = []
         self.run_by_name = {}
+
 
     def run(self, L = 2, z = 2, run_name = None):
 
@@ -275,7 +271,7 @@ class SuperpositionNetwork:
         L = int(L) # Number of layers
         z = int(z) # Number of circuits in superposition
 
-        #Import local variables
+        #Import network data as local variables
         device = self.device
         D = self.D
         T = self.T
@@ -285,48 +281,63 @@ class SuperpositionNetwork:
         r = self.r
         W1 = self.W1
         W2 = self.W2
-        B = self.B
+
+        #Bias
+        B = torch.zeros(4*D, device=device)
+        B[2*D:] = -1
 
         #Neuron activations
         A = torch.zeros(L, 4*D, device=device)
         x = torch.zeros(L, z, 2, device=device)
         est_x = torch.zeros(L, z, 2, device=device)
 
-        #Input
+        #Inputs
         active_circuits = torch.randint(T, (z,), device=device)
         initial_angle = torch.rand(bs, z, device=device) * 2 * np.pi
         x[0, :, 0] = torch.cos(initial_angle)
         x[0, :, 1] = torch.sin(initial_angle)
         est_x[0] = x[0]
+        
+        #Running the small circuits
+        for i in range(1,L):
+            x[l] = torch.einsum('tij,tj->ti', r[active_circuits], x[l-1])
 
-        #Running the network
-        for l in range(1,L):
-            x[:, l] = torch.einsum('tij,tj->ti', r[active_circuits], x[:, l-1])
+        #Large netowrk initial values
+        for k,t in enumerate(active_circuits):
+            A[0, :D] += assignments_1[t]
+            A[0, D:2*D] += assignments_2[t]
+            A[0, 2*D:3*D] += (x[1,k,0] + 1) * assignments_1[t]  
+            A[0, 3*D:4*D] += (x[1,k,1] + 1) * assignments_1[t] 
 
+
+        #Running the large netowrk: Layer 1
+        A[1, :2*D] = - torch.relu(- A[0, :2*D] + 1) + 1 #implements min[1,x] = -ReLU(-x+1)+1
+        A[1, 2*D:] = torch.relu(A[0, 2*D:])             #just copies over the values
+
+        #Running the large network: All other layers
+        for l in range(2,L):
             if l%2 == 1: # Odd layers
-                if l == 1: # layer 1
-                    for k,t in enumerate(active_circuits):
-                        A[1, :D] += assignments_1[t]
-                        A[1, D:2*D] += assignments_2[t]
-                        A[1, 2*D:3*D] += (x[1,k,0] + 1) * assignments_1[t]  
-                        A[1, 3*D:4*D] += (x[1,k,1] + 1) * assignments_1[t] 
-                else:
-                A[l] = torch.relu(torch.einsum('ij,j->i', (W1, A[l-1])) - B)
+                A[l] = torch.relu(torch.einsum('ij,j->i', (W1, A[l-1])) + B)
 
+            else: # Even layers
+                A[l] = torch.relu(torch.einsum('ij,j->i', (W2, A[l-1])) + B)
 
+           
+        #Extracting estimates for x in each layer
+        for l in range(1,L):
+            if l%2 == 1: # Odd layers
                 est_x[l,:,0] = torch.einsum('tn,n->t', 
                                             (assignments_1[active_circuits], A[l, 2*D:3*D]))/S - 1
                 est_x[l,:,1] = torch.einsum('tn,n->t',  
                                             (assignments_1[active_circuits], A[l, 3*D:4*D]))/S - 1
                 
             else: # Even layers
-                A[l] = torch.relu(torch.einsum('ij,j->i', (W2, A[l-1])) - B)
-
                 est_x[l,:,0] = torch.einsum('tn,n->t', 
                                             (assignments_2[active_circuits], A[l, 2*D:3*D]))/S - 1
                 est_x[l,:,1] = torch.einsum('tn,n->t', 
                                             (assignments_2[active_circuits], A[l, 3*D:4*D]))/S - 1
         
+
         # Saving run data
         run = RunData()
         run.L = L
