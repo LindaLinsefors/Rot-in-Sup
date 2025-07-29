@@ -100,7 +100,7 @@ def maxT(D_over_d = 500, S = 5):
     t += 1
 
 
-def comp_in_sup_assignment(T = 2000, D_over_d = 500, S = 5):
+def comp_in_sup_assignment(T = 2000, D_over_d = 500, S = 5, device="cpu"):
 
   D_over_d = int(D_over_d)
   assignments = torch.zeros(T, D_over_d, dtype=torch.int64)
@@ -185,113 +185,165 @@ def slow_test_assignments(assignments, S):
 #%% Setting up the netork
 #   Setting up the netork
 
-#Parameters
-D = 1000 # Number of neurons in the large network devided by 4
-T = 6000 # Number of small circuits in superposition
-S = 5 # Number of large network neurons used by each small circuit neuron
+class RunData:
+   pass
 
-#Embedding assignments
-assignments_1, compact_assignments_1 = comp_in_sup_assignment(T, D, S)
-shuffle = torch.randperm(T, device=device)
-assignments_2 = assignments_1[shuffle]
-compact_assignments_2 = compact_assignments_1[shuffle]
+class SuperpositionNetwork:
+    def __init__(self, D=1000, T=6000, S=5, device="cpu"):
 
-#Small circuit rotations
-theta = torch.rand(T,device=device) * 2 * np.pi
-cos = torch.cos(theta)
-sin = torch.sin(theta)
-r = torch.zeros(T, 2, 2, device=device)
-r[:,0,0] = cos
-r[:,0,1] = -sin
-r[:,1,0] = sin
-r[:,1,1] = cos
+        #Function parameters
+        D = int(D) # Number of neurons in the large network devided by 4
+        T = int(T) # Number of small circuits in superposition
+        S = int(S) # Number of large network neurons used by each small circuit neuron
 
-#One vector
-one = torch.ones(2, device=device)
+        #Embedding assignments
+        assignments_1, compact_assignments_1 = comp_in_sup_assignment(T, D, S, device)
+        shuffle = torch.randperm(T, device=device)
+        assignments_2 = assignments_1[shuffle]
+        compact_assignments_2 = compact_assignments_1[shuffle]
 
-#Large network weight matrices
-W1 = torch.zeros(4*D, 4*D, device=device)
-W2 = torch.zeros(4*D, 4*D, device=device)
+        #Small circuit rotations
+        theta = torch.rand(T,device=device) * 2 * np.pi
+        cos = torch.cos(theta)
+        sin = torch.sin(theta)
+        r = torch.zeros(T, 2, 2, device=device)
+        r[:,0,0] = cos
+        r[:,0,1] = -sin
+        r[:,1,0] = sin
+        r[:,1,1] = cos
 
-#Perserveing activationi indicators
-W1[:2*D, :2*D] = torch.eye(2*D, device=device)
-W2[:2*D, :2*D] = torch.eye(2*D, device=device)
+        #One vector
+        one = torch.ones(2, device=device)
 
-#Adding 2 to active circuit neurons
-W1[2*D:3*D, :D] = torch.eye(D, device=device) * 2
-W1[3*D:4*D, :D] = torch.eye(D, device=device) * 2
-W2[2*D:3*D, D:2*D] = torch.eye(D, device=device) * 2
-W2[3*D:4*D, D:2*D] = torch.eye(D, device=device) * 2
+        #Large network weight matrices
+        W1 = torch.zeros(4*D, 4*D, device=device)
+        W2 = torch.zeros(4*D, 4*D, device=device)
 
-#Removing rotated one
-rotated_one = torch.einsum('tn,tm,tij,j->nmi', (assignments_1, assignments_2, r, one))/S
-W1[2*D:3*D, D:2*D] = - rotated_one[:,:,0]
-W1[3*D:4*D, D:2*D] = - rotated_one[:,:,1]
-W2[2*D:3*D, :D] = - rotated_one[:,:,0].t()
-W2[3*D:4*D, :D] = - rotated_one[:,:,1].t()
+        #Perserveing activationi indicators
+        W1[:2*D, :2*D] = torch.eye(2*D, device=device)
+        W2[:2*D, :2*D] = torch.eye(2*D, device=device)
 
-#Rotation
-all_rotations= torch.einsum('tn,tm,tij->nmij', (assignments_1, assignments_2, r))/S
-W1[2*D:3*D, 2*D:3*D] = all_rotations[:,:,0,0]
-W1[2*D:3*D, 3*D:4*D] = all_rotations[:,:,0,1]
-W1[3*D:4*D, 2*D:3*D] = all_rotations[:,:,1,0]
-W1[3*D:4*D, 3*D:4*D] = all_rotations[:,:,1,1]
-W2[2*D:3*D, 2*D:3*D] = all_rotations[:,:,0,0].t()
-W2[2*D:3*D, 3*D:4*D] = all_rotations[:,:,0,1].t()
-W2[3*D:4*D, 2*D:3*D] = all_rotations[:,:,1,0].t()
-W2[3*D:4*D, 3*D:4*D] = all_rotations[:,:,1,1].t()
+        #Adding 2 to active circuit neurons
+        W1[2*D:3*D, :D] = torch.eye(D, device=device) * 2
+        W1[3*D:4*D, :D] = torch.eye(D, device=device) * 2
+        W2[2*D:3*D, D:2*D] = torch.eye(D, device=device) * 2
+        W2[3*D:4*D, D:2*D] = torch.eye(D, device=device) * 2
 
-#Bias
-B = torch.zeros(4*D, device=device)
-B[2*D:] = 1
+        #Removing rotated one
+        rotated_one = torch.einsum('tn,tm,tij,j->nmi', (assignments_1, assignments_2, r, one))/S
+        W1[2*D:3*D, D:2*D] = - rotated_one[:,:,0]
+        W1[3*D:4*D, D:2*D] = - rotated_one[:,:,1]
+        W2[2*D:3*D, :D] = - rotated_one[:,:,0].t()
+        W2[3*D:4*D, :D] = - rotated_one[:,:,1].t()
+
+        #Rotation
+        all_rotations= torch.einsum('tn,tm,tij->nmij', (assignments_1, assignments_2, r))/S
+        W1[2*D:3*D, 2*D:3*D] = all_rotations[:,:,0,0]
+        W1[2*D:3*D, 3*D:4*D] = all_rotations[:,:,0,1]
+        W1[3*D:4*D, 2*D:3*D] = all_rotations[:,:,1,0]
+        W1[3*D:4*D, 3*D:4*D] = all_rotations[:,:,1,1]
+        W2[2*D:3*D, 2*D:3*D] = all_rotations[:,:,0,0].t()
+        W2[2*D:3*D, 3*D:4*D] = all_rotations[:,:,0,1].t()
+        W2[3*D:4*D, 2*D:3*D] = all_rotations[:,:,1,0].t()
+        W2[3*D:4*D, 3*D:4*D] = all_rotations[:,:,1,1].t()
+
+        #Bias
+        B = torch.zeros(4*D, device=device)
+        B[2*D:] = 1
+
+        #Saving data to network object
+        self.device = device
+        self.D = D
+        self.T = T
+        self.S = S
+        self.assignments_1 = assignments_1
+        self.assignments_2 = assignments_2
+        self.compact_assignments_1 = compact_assignments_1
+        self.compact_assignments_2 = compact_assignments_2
+        self.r = r
+        self.W1 = W1
+        self.W2 = W2
+        self.B = B
+
+        #Empty list for storing run data later
+        self.runs = []
+        self.run_by_name = {}
+
+    def run(self, L = 2, z = 2, run_name = None):
+
+        #Function parameters
+        L = int(L) # Number of layers
+        z = int(z) # Number of circuits in superposition
+
+        #Import local variables
+        device = self.device
+        D = self.D
+        T = self.T
+        S = self.S
+        assignments_1 = self.assignments_1
+        assignments_2 = self.assignments_2
+        r = self.r
+        W1 = self.W1
+        W2 = self.W2
+        B = self.B
+
+        #Neuron activations
+        A = torch.zeros(L, 4*D, device=device)
+        x = torch.zeros(L, z, 2, device=device)
+        est_x = torch.zeros(L, z, 2, device=device)
+
+        #Input
+        active_circuits = torch.randint(T, (z,), device=device)
+        initial_angle = torch.rand(bs, z, device=device) * 2 * np.pi
+        x[0, :, 0] = torch.cos(initial_angle)
+        x[0, :, 1] = torch.sin(initial_angle)
+        est_x[0] = x[0]
+
+        #Running the network
+        for l in range(1,L):
+            x[:, l] = torch.einsum('tij,tj->ti', r[active_circuits], x[:, l-1])
+
+            if l%2 == 1: # Odd layers
+                if l == 1: # layer 1
+                    for k,t in enumerate(active_circuits):
+                        A[1, :D] += assignments_1[t]
+                        A[1, D:2*D] += assignments_2[t]
+                        A[1, 2*D:3*D] += (x[1,k,0] + 1) * assignments_1[t]  
+                        A[1, 3*D:4*D] += (x[1,k,1] + 1) * assignments_1[t] 
+                else:
+                A[l] = torch.relu(torch.einsum('ij,j->i', (W1, A[l-1])) - B)
 
 
-#%% Running the network
-#   Running the network
+                est_x[l,:,0] = torch.einsum('tn,n->t', 
+                                            (assignments_1[active_circuits], A[l, 2*D:3*D]))/S - 1
+                est_x[l,:,1] = torch.einsum('tn,n->t',  
+                                            (assignments_1[active_circuits], A[l, 3*D:4*D]))/S - 1
+                
+            else: # Even layers
+                A[l] = torch.relu(torch.einsum('ij,j->i', (W2, A[l-1])) - B)
 
-#Parameters
-L = 5 # Number of layers
-z = 2 # Number of circuits in superposition
-
-#Neuron activations
-A = torch.zeros(L, 4*D, device=device)
-x = torch.zeros(L, z, 2, device=device)
-est_x = torch.zeros(L, z, 2, device=device)
-
-#Input
-active_circuits = torch.randint(T,(z,), device=device)
-initial_angle = torch.rand(z, device=device) * 2 * np.pi
-x[0,:,0] = torch.cos(initial_angle)
-x[0,:,1] = torch.sin(initial_angle)
-est_x[0] = x[0]
-
-#Running the network
-for l in range(1,L):
-    x[l] = torch.einsum('tij,tj->ti', r[active_circuits], x[l-1])
-
-    if l%2 == 1: # Odd layers
-        if l == 1: # layer 1
-            for k,t in enumerate(active_circuits):
-                A[1, :D] += assignments_1[t]
-                A[1, D:2*D] += assignments_2[t]
-                A[1, 2*D:3*D] += (x[1,k,0] + 1) * assignments_1[t]  
-                A[1, 3*D:4*D] += (x[1,k,1] + 1) * assignments_1[t] 
-        else:
-           A[l] = torch.relu(torch.einsum('ij,j->i', (W1, A[l-1])) - B)
-
-
-        est_x[l,:,0] = torch.einsum('tn,n->t', 
-                                    (assignments_1[active_circuits], A[l, 2*D:3*D]))/S - 1
-        est_x[l,:,1] = torch.einsum('tn,n->t',  
-                                    (assignments_1[active_circuits], A[l, 3*D:4*D]))/S - 1
+                est_x[l,:,0] = torch.einsum('tn,n->t', 
+                                            (assignments_2[active_circuits], A[l, 2*D:3*D]))/S - 1
+                est_x[l,:,1] = torch.einsum('tn,n->t', 
+                                            (assignments_2[active_circuits], A[l, 3*D:4*D]))/S - 1
         
-    else: # Even layers
-        A[l] = torch.relu(torch.einsum('ij,j->i', (W2, A[l-1])) - B)
+        # Saving run data
+        run = RunData()
+        run.L = L
+        run.z = z
+        run.active_circuits = active_circuits
+        run.x = x
+        run.est_x = est_x
+        run.A = A
+        run.name = run_name
 
-        est_x[l,:,0] = torch.einsum('tn,n->t', 
-                                    (assignments_2[active_circuits], A[l, 2*D:3*D]))/S - 1
-        est_x[l,:,1] = torch.einsum('tn,n->t', 
-                                    (assignments_2[active_circuits], A[l, 3*D:4*D]))/S - 1
+        self.runs.append(run)
+
+        if run_name is not None:
+            if run_name in self.run_by_name:
+                print(f"Warning: Overwriting existing run with name '{run_name}'")
+                self.run_by_name[run_name] = run
+
 #%% Print x and est_x
 #   Print x and est_x
 for k in range(z):
@@ -308,3 +360,5 @@ print(A[l,D:2*D])
 print(A[l,2*D:3*D])
 print(A[l,3*D:4*D])
 # %%
+#%% Testing the network
+#   Testing the network 
