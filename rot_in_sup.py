@@ -303,11 +303,10 @@ class RotInSupNetwork:
             x[l] = torch.einsum('tij,tj->ti', r[active_circuits], x[l-1])
 
         #Large netowrk initial values
-        for k,t in enumerate(active_circuits):
-            A[0, :D] += assignments_1[t]
-            A[0, D:2*D] += assignments_2[t]
-            A[0, 2*D:3*D] += (x[1,k,0] + 1) * assignments_1[t]  
-            A[0, 3*D:4*D] += (x[1,k,1] + 1) * assignments_1[t] 
+        A[0, :D] = torch.einsum('ti->i', (assignments_1[active_circuits],))
+        A[0, D:2*D] = torch.einsum('ti->i', (assignments_2[active_circuits],))
+        A[0, 2*D:3*D] = torch.einsum('t,ti->i', (x[1,:,0] + 1, assignments_1[active_circuits]))
+        A[0, 3*D:4*D] += torch.einsum('t,ti->i',(x[1,:,1] + 1, assignments_1[active_circuits])) 
 
 
         #Running the large netowrk: Layer 1
