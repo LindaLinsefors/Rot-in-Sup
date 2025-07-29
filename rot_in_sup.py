@@ -188,7 +188,7 @@ def slow_test_assignments(assignments, S):
 class RunData:
    pass
 
-class SuperpositionNetwork:
+class RotInSupNetwork:
     def __init__(self, D=1000, T=6000, S=5, device="cpu"):
 
         #Function parameters
@@ -293,13 +293,13 @@ class SuperpositionNetwork:
 
         #Inputs
         active_circuits = torch.randint(T, (z,), device=device)
-        initial_angle = torch.rand(bs, z, device=device) * 2 * np.pi
+        initial_angle = torch.rand(z, device=device) * 2 * np.pi
         x[0, :, 0] = torch.cos(initial_angle)
         x[0, :, 1] = torch.sin(initial_angle)
         est_x[0] = x[0]
         
         #Running the small circuits
-        for i in range(1,L):
+        for l in range(1,L):
             x[l] = torch.einsum('tij,tj->ti', r[active_circuits], x[l-1])
 
         #Large netowrk initial values
@@ -355,13 +355,24 @@ class SuperpositionNetwork:
                 print(f"Warning: Overwriting existing run with name '{run_name}'")
                 self.run_by_name[run_name] = run
 
-#%% Print x and est_x
-#   Print x and est_x
+        return run
+
+#%% Small test
+#   Small test
+D=5
+S=2
+T=2
+L=4
+z=1
+
+smal_test_net = RotInSupNetwork(D,T,S)
+test_run = smal_test_net.run(L,z)
+
 for k in range(z):
     for l in range(L):
         print(f'l={l}')
-        print('x:    ', x[l,k])
-        print('est_x:', est_x[l,k])
+        print('x:    ', test_run.x[l,k])
+        print('est_x:', test_run.est_x[l,k])
         print()
 # %%
 l=3
