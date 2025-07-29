@@ -376,17 +376,17 @@ for k in range(z):
             print('est_x:', test_run.est_x[l,b,k], '\n')
 
 
-#%% Large test
-#   Large test
-Dod=500
+#%% Larger test
+#   Larger test
+Dod=600
 S=5
-T=3000
+T=4000
 L=5
 z=2
-bs = 2
+bs=2
 
-smal_test_net = RotInSupNetwork(Dod,T,S)
-test_run = smal_test_net.run(L,z,bs)
+test_net = RotInSupNetwork(Dod,T,S)
+test_run = test_net.run(L,z,bs)
 
 for k in range(z):
     for b in range(bs):
@@ -396,5 +396,118 @@ for k in range(z):
             print('x:    ', test_run.x[l,b,k])
             print('est_x:', test_run.est_x[l,b,k], '\n')
 
+# %%
+Dod=500
+D=int(4*Dod)
+S=5
+T=3000
+L=8
+N = 3600
+
+net = RotInSupNetwork(Dod,T,S)
+for z in range(1,5):
+   bs = N/z
+   run = net.run(L,z,bs, run_name=z)
+
+# %%
+for z in range(1,5):
+   error = net.run_by_name[z].est_x - net.run_by_name[z].x
+   mse = (error ** 2).mean((1,2,3))
+   plt.plot(mse, label=f'z={z}')
+plt.xlabel('Layer')
+plt.ylabel('Mean Squared Error')
+plt.title(f'D={D}, D/d={Dod}, T={T}, S={S}, N={N}')
+plt.legend()
+plt.show()
+# %%
+for z in range(1,5):
+   error = net.run_by_name[z].est_x - net.run_by_name[z].x
+   mean_error = error.mean((1,2,3))
+   plt.plot(mean_error, label=f'z={z}')
+plt.xlabel('Layer')
+plt.ylabel('Mean Error')
+plt.title(f'D={D}, D/d={Dod}, T={T}, S={S}, N={N}')
+plt.legend()
+plt.show()
+
+# %%
+l=2
+for z in range(1,5):
+   error = net.run_by_name[z].est_x - net.run_by_name[z].x
+   plt.hist(error[l].flatten().cpu().numpy(), bins=50, alpha=0.5, label=f'z={z}', density=True)
+plt.title(f'D={D}, D/d={Dod}, T={T}, S={S}, N={N} : Error distribution for layer {l}')
+plt.legend()
+plt.show()
+# %%
+
+Dod=500
+D=int(4*Dod)
+T=1000
+bs = 3600
+
+netS = {}
+for S in range(2,8):
+    netS[S] = RotInSupNetwork(Dod,T,S)
+    for z in range(1,5):
+        run = netS[S].run(L,z,bs, run_name=z)
+
+# %%
+for z in range(1,5):
+
+    for S in range(2,8):
+        if S == 2:
+           color = 'blue'
+        elif S == 3:
+           color = 'green'
+        elif S == 4:
+           color = 'orange'
+        elif S == 5:
+           color = 'red'
+        elif S == 6:
+           color = 'purple'
+        elif S == 7:
+           color = 'black'
+
+        error = netS[S].run_by_name[z].est_x - netS[S].run_by_name[z].x
+        mse = (error ** 2).mean((1,2,3))
+        plt.plot(mse, label=f'S={S}', color=color)
+    plt.xlabel('Layer')
+    plt.ylabel('Mean Squared Error')
+    plt.title(f'D={D}, D/d={Dod}, T={T}, z={z}, N={N}')
+    plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+    plt.tight_layout()
+    plt.show()
+
+for z in range(1,5):
+    if z == 1:
+        linestyle = 'solid'
+    elif z == 2:
+        linestyle = 'dashed'
+    elif z == 3:
+        linestyle = 'dotted'
+
+    for S in range(2,8):
+        if S == 2:
+           color = 'blue'
+        elif S == 3:
+           color = 'green'
+        elif S == 4:
+           color = 'orange'
+        elif S == 5:
+           color = 'red'
+        elif S == 6:
+           color = 'purple'
+        elif S == 7:
+           color = 'black'
+
+        error = netS[S].run_by_name[z].est_x - netS[S].run_by_name[z].x
+        mse = (error ** 2).mean((1,2,3))
+        plt.plot(mse, label=f'z={z}, S={S}', color=color, linestyle=linestyle)
+plt.xlabel('Layer')
+plt.ylabel('Mean Squared Error')
+plt.title(f'D={D}, D/d={Dod}, T={T}, N={N}')
+plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+plt.tight_layout()
+plt.show()
 
 # %%
