@@ -5,10 +5,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import torch
 import tqdm
-
-
-from sympy.ntheory import isprime
-import torch
+from assignments import maxT, comp_in_sup_assignment
 
 #device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 device = "cpu"
@@ -44,147 +41,8 @@ try:
 except:
     pass
 
-#%% Assignments for circuits in a superposition
-
-def get_steps(S, Dod):
-
-  primes_smaller_than_S = [num for num in range(2,S) if isprime(num)]
-
-  step = 1
-  while step * (S-1) < Dod:
-
-    for p in primes_smaller_than_S:
-      if step % p == 0:
-        break
-    else:
-      yield step
-      if not isprime(S):
-        n=1
-        while step * S**n * (S-1) < Dod:
-          yield step * S**n
-          n+=1
-    step += 1
-
-
-class MaxT(Exception):
-  pass
-
-
-def maxT(Dod = 500, S = 5):
-  t = 0
-
-  steps = get_steps(S, Dod)
-  try:
-    step = next(steps)
-  except StopIteration:
-    return int(t/S)
-
-  shift=0
-  i=0
-
-  while True:
-
-    if i + step*(S-1) >= Dod:
-      shift += 1
-
-      if shift >= step or shift + step*(S-1) >= Dod:
-        try:
-          step = next(steps)
-        except StopIteration:
-          return int(t)
-        shift = 0
-
-      i = shift
-
-    for s in range(S):
-      i += step
-    t += 1
-
-
-def comp_in_sup_assignment(T = 2000, Dod = 500, S = 5, device="cpu"):
-
-  Dod = int(Dod)
-  assignments = torch.zeros(T, Dod, dtype=torch.int64)
-  compact_assignments = torch.zeros(T, S, dtype=torch.int64)
-
-  if S == 1:
-    i = 0
-    for t in range(T):
-      assignments[t,i] = 1
-      compact_assignments[t,0] = i
-      i += 1
-      if i >= Dod:
-        i = 0
-    return assignments.to(device).float(), compact_assignments.to(device).int()
-
-  steps = get_steps(S, Dod)
-  step = next(steps)
-  shift=0
-  i=0
-
-  for t in range(T):
-
-    if i + step*(S-1) >= Dod:
-      shift += 1
-
-      if shift >= step or shift + step*(S-1) >= Dod:
-        try:
-          step = next(steps)
-        except StopIteration:
-          raise MaxT(f'Not enough step options. Max T = {t}')
-        shift = 0
-
-      i = shift
-
-    for s in range(S):
-      assignments[t,i] = 1
-      compact_assignments[t,s] = i
-      i += step
-
-  return assignments.to(device).float(), compact_assignments.to(device).int()
-
-def test_assignments(assignments, S):
-  not_S =(assignments.sum(dim=1) != S).sum()
-  if not_S == 0:
-    print('Test 1 passed: Correct number of assigments for all circuits')
-  else:
-    print(f'Test 1 failed: Wrong number of assigments for {not_S} circuit(s)')
-
-  overlap = (assignments.to(torch.float)) @ (assignments.to(torch.float).T) - S * torch.eye(T,device=device)
-  if overlap.max() > 1:
-    print('Test 2 failed: Overlap is above one, some pari of circuits')
-  else:
-    print('Test 2 passed: Overlap is max one, for all paris of circuits')
-
-
-def slow_test_assignments(assignments, S):
-  T = assignments.shape[0]
-
-  passed_test_1 = True
-  for t in range(T):
-    if not assignments[t].sum() == S:
-      print('Error: Wrong numbe of assigments for circuit ', t)
-      passed_test = False
-
-  if passed_test_1:
-    print('Test passed: Correct number of assigments for all circuits')
-
-  passed_test_2 = True
-  for t in range(T):
-    for u in range(t):
-      if (assignments[t] * assignments[u]).sum() > 1:
-        print('Error: Too high colition for circuits pair', u ,t)
-        passed_test_2 = False
-
-  if passed_test_2:
-    print('Test passed: Overlap is max one, for all paris of circuits')
-
-  if passed_test_1 and passed_test_2:
-    return True
-  else:
-    return False
 #%% Setting up the netork
-#   Setting up the netork
+#   Setting up the network
 
 class RunData:
    pass
@@ -193,7 +51,7 @@ class RotInSupNetwork:
     def __init__(self, Dod=1000, T=6000, S=5, device="cpu"):
 
         #Function parameters
-        Dod = int(Dod) # Number of neurons in the large network devided by 4
+        Dod = int(Dod) # Number of neurons in the large network divided by 4
         T = int(T) # Number of small circuits in superposition
         S = int(S) # Number of large network neurons used by each small circuit neuron
 
@@ -220,7 +78,7 @@ class RotInSupNetwork:
         W1 = torch.zeros(4*Dod, 4*Dod, device=device)
         W2 = torch.zeros(4*Dod, 4*Dod, device=device)
 
-        #Perserveing activationi indicators
+        #Preserving activation indicators
         W1[:2*Dod, :2*Dod] = torch.eye(2*Dod, device=device)
         W2[:2*Dod, :2*Dod] = torch.eye(2*Dod, device=device)
 
