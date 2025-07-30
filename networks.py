@@ -19,6 +19,38 @@ T = 6000
 S = 5
 device = 'cpu'
 
+class SmallCircuits:
+    def __init__(self, T=T, device=device):
+        self.T = T
+        self.device = device
+        
+        #Small circuit rotations
+        theta = torch.rand(T,device=device) * 2 * np.pi
+        cos = torch.cos(theta)
+        sin = torch.sin(theta)
+        self.r = torch.zeros(T, 2, 2, device=device)
+        self.r[:,0,0] = cos
+        self.r[:,0,1] = -sin
+        self.r[:,1,0] = sin
+        self.r[:,1,1] = cos
+
+    def run(self, L, z, bs):
+        """Run all small circuits on input random inputs"""
+
+        x = torch.zeros(L, bs, z, 2, device=device)
+
+        #Inputs
+        active_circuits = torch.randint(T, (bs, z), device=device)
+        initial_angle = torch.rand(bs, z, device=device) * 2 * np.pi
+        x[0, :, :, 0] = torch.cos(initial_angle)
+        x[0, :, :, 1] = torch.sin(initial_angle)
+        
+        #Running the small circuits
+        for l in range(1,L):
+            x[l] = torch.einsum('btij,btj->bti', self.r[active_circuits], x[l-1])
+
+        return x, active_circuits
+
 
 class RunData:
    pass
@@ -37,15 +69,9 @@ class RotInSupNetwork_4d:
         assignments_2 = assignments_1[shuffle]
         compact_assignments_2 = compact_assignments_1[shuffle]
 
-        #Small circuit rotations
-        theta = torch.rand(T,device=device) * 2 * np.pi
-        cos = torch.cos(theta)
-        sin = torch.sin(theta)
-        r = torch.zeros(T, 2, 2, device=device)
-        r[:,0,0] = cos
-        r[:,0,1] = -sin
-        r[:,1,0] = sin
-        r[:,1,1] = cos
+        #Small circuits
+        small_circuits = SmallCircuits(T, device)
+        r = small_circuits.r
 
         #One vector
         one = torch.ones(2, device=device)
@@ -94,6 +120,7 @@ class RotInSupNetwork_4d:
         self.r = r
         self.W1 = W1
         self.W2 = W2
+        self.small_circuits = small_circuits
 
         #Empty list for storing run data later
         self.runs = []
@@ -110,36 +137,22 @@ class RotInSupNetwork_4d:
         #Import network data as local variables
         device = self.device
         Dod = self.Dod
-        T = self.T
         S = self.S
         assignments_1 = self.assignments_1
         assignments_2 = self.assignments_2
-        r = self.r
         W1 = self.W1
         W2 = self.W2
+        small_circuits = self.small_circuits
+
+        #Run small circuits
+        x, active_circuits = small_circuits.run(L, z, bs)
 
         #Bias
         B = torch.zeros(4*Dod, device=device)
-        B[2*Dod:] = -1
-
-        #Neuron activations (batched)
-        A = torch.zeros(L, bs, 4*Dod, device=device)
-        x = torch.zeros(L, bs, z, 2, device=device)
-        est_x = torch.zeros(L, bs, z, 2, device=device)
-
-        #Inputs
-        active_circuits = torch.randint(T, (bs, z), device=device)
-        initial_angle = torch.rand(bs, z, device=device) * 2 * np.pi
-        x[0, :, :, 0] = torch.cos(initial_angle)
-        x[0, :, :, 1] = torch.sin(initial_angle)
-        
-        est_x[0] = x[0]
-        
-        #Running the small circuits
-        for l in range(1,L):
-            x[l] = torch.einsum('btij,btj->bti', r[active_circuits], x[l-1])
+        B[2*Dod:] = -1 
 
         #Large network initial values
+        A = torch.zeros(L, bs, 4*Dod, device=device)
         A[0, :,    :Dod  ] = torch.einsum('bti->bi', assignments_1[active_circuits])
         A[0, :, Dod:2*Dod] = torch.einsum('bti->bi', assignments_2[active_circuits])
         A[0, :, 2*Dod:3*Dod] = torch.einsum('bt,bti->bi', (x[1,:,:,0], assignments_1[active_circuits]))
@@ -159,6 +172,9 @@ class RotInSupNetwork_4d:
                 A[l] = torch.relu(torch.einsum('ij,bj->bi', W2, A[l-1]) + B[None,:])
 
         #Extracting estimates for x in each layer
+        est_x = torch.zeros(L, bs, z, 2, device=device)
+        est_x[0] = x[0]
+
         for l in range(1,L):
             if l%2 == 1: # Odd layers
                 est_x[l,:,:,0] = torch.einsum('btn,bn->bt', 
