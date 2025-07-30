@@ -7,8 +7,9 @@ import torch
 import tqdm
 from assignments import maxT, comp_in_sup_assignment
 
-#device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-device = "cpu"
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+# device = "cpu"
+print(f'device = {device}')
 
 #%% Customizing the __repr__ method of torch.Tensor to save images
 #   Customizing the __repr__ method of torch.Tensor to save images
@@ -48,7 +49,7 @@ class RunData:
    pass
 
 class RotInSupNetwork:
-    def __init__(self, Dod=1000, T=6000, S=5, device="cpu"):
+    def __init__(self, Dod=1000, T=6000, S=5, device=device):
 
         #Function parameters
         Dod = int(Dod) # Number of neurons in the large network divided by 4
@@ -303,7 +304,7 @@ plt.show()
 Dod=500
 D=int(4*Dod)
 T=1000
-bs = 3600
+bs = 36000
 
 netS = {}
 for S in tqdm.tqdm(range(2,8)):
@@ -390,5 +391,3 @@ est_active = torch.einsum('bti,bi->bt', (assignments_1[active_circuits], A0[:,:D
 mse=((est_active-1)**2).mean()
 print(mse)
 print((z-1)/Dod)
-
-# %%
