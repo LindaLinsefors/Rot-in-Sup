@@ -221,3 +221,61 @@ print(mse)
 print((z-1)/Dod)
 
 # %%
+Dod=5
+S=2
+T=2
+L=4
+z=1
+bs = 2
+device='cpu'
+L=2
+
+#Function parameters
+Dod = int(Dod) # Number of neurons in the large network divided by 4
+T = int(T) # Number of small circuits in superposition
+S = int(S) # Number of large network neurons used by each small circuit neuron
+L = int(L) # Number of layers before W repeats
+
+#Embedding assignments for the on indicator
+assignments_on = torch.randn(T, Dod, device=device)
+assignments_on = assignments_on / assignments_on.norm(dim=1, keepdim=True)
+
+#Embedding assignments for the vector values
+assignments = torch.zeros(L, T, Dod)
+
+assignments[0], _ = comp_in_sup_assignment(T, Dod, S, device)
+
+for l in range(1,L):
+    shuffle = torch.randperm(T, device=device)
+    assignments[l], _ = assignments[0,shuffle]
+
+#Slightly negative everwhere else s.t. balanced_assignments.mean()=0
+balanced_assignments = assignments * (1+S/(Dod-S)) - torch.ones_like(assignments) * S/(Dod-S)
+
+#Small circuit rotations
+theta = torch.rand(T,device=device) * 2 * np.pi
+cos = torch.cos(theta)
+sin = torch.sin(theta)
+r = torch.zeros(T, 2, 2, device=device)
+r[:,0,0] = cos
+r[:,0,1] = -sin
+r[:,1,0] = sin
+r[:,1,1] = cos
+
+#One vector
+one = torch.ones(2, device=device)
+
+#Large network weight matrices
+W = torch.zeros(L, 3*Dod, 3*Dod, device=device)
+
+for l in range(L):
+    #Preserving activation indicators
+    W[l,:Dod, :Dod] = torch.eye(Dod, device=device)
+
+    #Adding 2 to active circuit neurons
+
+
+# %%
+balanced_assignments_1.mean()
+
+# %%

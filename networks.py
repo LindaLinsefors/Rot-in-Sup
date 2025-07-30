@@ -13,12 +13,18 @@ import torch
 from assignments import comp_in_sup_assignment
 import numpy as np
 
+#Default variables
+Dod = 1000
+T = 6000
+S = 5
+device = 'cpu'
+
 
 class RunData:
    pass
 
 class RotInSupNetwork_4d:
-    def __init__(self, Dod=1000, T=6000, S=5, device='cpu'):
+    def __init__(self, Dod=Dod, T=T, S=S, device=device):
 
         #Function parameters
         Dod = int(Dod) # Number of neurons in the large network divided by 4
