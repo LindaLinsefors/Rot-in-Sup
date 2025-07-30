@@ -4,6 +4,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import torch
+import tqdm
 
 
 from sympy.ntheory import isprime
@@ -305,15 +306,16 @@ class RotInSupNetwork:
             x[l] = torch.einsum('btij,btj->bti', r[active_circuits], x[l-1])
 
         #Large network initial values
-        A[0, :, :Dod] = torch.einsum('bti->bi', assignments_1[active_circuits])
+        A[0, :,    :Dod  ] = torch.einsum('bti->bi', assignments_1[active_circuits])
         A[0, :, Dod:2*Dod] = torch.einsum('bti->bi', assignments_2[active_circuits])
-        A[0, :, 2*Dod:3*Dod] = torch.einsum('bt,bti->bi', (x[1,:,:,0] + 1, assignments_1[active_circuits]))
-        A[0, :, 3*Dod:4*Dod] = torch.einsum('bt,bti->bi', (x[1,:,:,1] + 1, assignments_1[active_circuits])) 
+        A[0, :, 2*Dod:3*Dod] = torch.einsum('bt,bti->bi', (x[1,:,:,0], assignments_1[active_circuits]))
+        A[0, :, 3*Dod:     ] = torch.einsum('bt,bti->bi', (x[1,:,:,1], assignments_1[active_circuits])) 
 
 
-        #Running the large netowrk: Layer 1
+        #Running the large network: Layer 1
         A[1, :, :2*Dod] = - torch.relu(- A[0, :, :2*Dod] + 1) + 1 #implements min[1,x] = -ReLU(-x+1)+1
-        A[1, :, 2*Dod:] = torch.relu(A[0, :, 2*Dod:])             #just copies over the values
+        A[1, :, 2*Dod:3*Dod] = torch.relu(A[0, :, 2*Dod:3*Dod] + 1) - 1 + A[1, :, :Dod]
+        A[1, :, 3*Dod:     ] = torch.relu(A[0, :, 3*Dod:     ] + 1) - 1 + A[1, :, :Dod]
 
         #Running the large network: All other layers
         for l in range(2,L):
@@ -397,10 +399,10 @@ for k in range(z):
             print('est_x:', test_run.est_x[l,b,k], '\n')
 
 # %%
-Dod=500
+Dod=600
 D=int(4*Dod)
 S=5
-T=3000
+T=4000
 L=8
 N = 3600
 
@@ -446,7 +448,7 @@ T=1000
 bs = 3600
 
 netS = {}
-for S in range(2,8):
+for S in tqdm.tqdm(range(2,8)):
     netS[S] = RotInSupNetwork(Dod,T,S)
     for z in range(1,5):
         run = netS[S].run(L,z,bs, run_name=z)
@@ -509,5 +511,26 @@ plt.title(f'D={D}, D/d={Dod}, T={T}, N={N}')
 plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
 plt.tight_layout()
 plt.show()
+
+# %%
+S=5
+for z in range(1,5):
+    error = netS[S].run_by_name[z].est_x - netS[S].run_by_name[z].x
+    mse = (error ** 2).sum(-1).mean((1,2))
+    #mse = (error ** 2).mean((1,2,3))
+    print('z=',z)
+    print(f'{mse[1]}')
+    print((z-1)*(1+2)/Dod)
+# %%
+z=2
+A0 = netS[S].run_by_name[z].A[0]
+active_circuits = netS[S].run_by_name[z].active_circuits
+assignments_1 = netS[S].assignments_1
+assignments_2 = netS[S].assignments_2
+Dod = netS[S].Dod
+est_active = torch.einsum('bti,bi->bt', (assignments_1[active_circuits], A0[:,:Dod]))/S
+mse=((est_active-1)**2).mean()
+print(mse)
+print((z-1)/Dod)
 
 # %%
