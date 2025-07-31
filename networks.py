@@ -65,15 +65,15 @@ class RotInSupNetwork_4d:
         T = int(T) # Number of small circuits in superposition
         S = int(S) # Number of large network neurons used by each small circuit neuron
 
+        #Small circuits
+        small_circuits = SmallCircuits(T, device)
+        r = small_circuits.r
+
         #Embedding assignments
         assignments_1, compact_assignments_1 = comp_in_sup_assignment(T, Dod, S, device)
         shuffle = torch.randperm(T, device=device)
         assignments_2 = assignments_1[shuffle]
         compact_assignments_2 = compact_assignments_1[shuffle]
-
-        #Small circuits
-        small_circuits = SmallCircuits(T, device)
-        r = small_circuits.r
 
         #One vector
         one = torch.ones(2, device=device)
@@ -211,3 +211,148 @@ class RotInSupNetwork_4d:
     
 
 
+class RotInSupNetwork_3d:
+    def __init__(self, Dod=Dod, T=T, S=S, L=2, balance=False, device=device):
+
+        #Function parameters
+        Dod = int(Dod) # Number of neurons in the large network divided by 4
+        T = int(T) # Number of small circuits in superposition
+        S = int(S) # Number of large network neurons used by each small circuit neuron
+        L = int(L) # Number of layers before W repeats
+
+        #Small circuits
+        small_circuits = SmallCircuits(T, device)
+        r = small_circuits.r
+
+        #Embedding assignments for the on indicator
+        assignments_on = torch.randn(T, Dod, device=device)
+        assignments_on = assignments_on / assignments_on.norm(dim=1, keepdim=True)
+
+        #Embedding assignments for the vector values
+        assignments = torch.zeros(L, T, Dod)
+
+        assignments[0], _ = comp_in_sup_assignment(T, Dod, S, device)
+
+        for l in range(1,L):
+            shuffle = torch.randperm(T, device=device)
+            assignments[l] = assignments[0,shuffle]
+
+        #Used for corelated computations only
+        if balance:
+            #Slightly negative for non assigned neurons s.t. balanced_assignments.mean()=0
+            balanced_assignments = assignments * (1 + S/(Dod - S)) - torch.ones_like(assignments) * S/(Dod - S) 
+        else:
+            balanced_assignments = assignments
+
+        #Used as index to get assigment from previous layer
+        previous = torch.roll(torch.arange(0, L, device=device), shifts=1)
+
+        #One vector
+        one = torch.ones(2, device=device)
+
+        #Large network weight matrices
+        W = torch.zeros(L, 3*Dod, 3*Dod, device=device)
+
+        #Preserving activation indicators
+        W[:, :Dod, :Dod] = torch.eye(Dod, device=device)[None, :, :]
+
+        #Adding 2 to active circuit neurons and suptracting rotation of one-vector
+        (W[:, Dod:2*Dod, :Dod], 
+         W[:, 2*Dod:,    :Dod]) = (
+                    2 * torch.einsum('ltn,tm,i->ilnm', (balanced_assignments, assignments_on, one)) 
+                    - torch.einsum('ltn,tm,tij,j->ilnm', (assignments, assignments_on, r, one)) )
+
+        #Rotating
+        ((W[:, Dod:2*Dod, Dod:2*Dod], W[:, Dod:2*Dod, 2*Dod:]), 
+        ( W[:, 2*Dod:,    Dod:2*Dod], W[:, 2*Dod:,    2*Dod:])) = (
+                    torch.einsum('ltn,ltm,tij->ijlnm', (assignments, assignments[previous], r)) / S)
+
+        #Saving data to network object
+        self.device = device
+        self.Dod = Dod
+        self.T = T
+        self.S = S
+        self.assignments_on = assignments_on
+        self.assignments = assignments
+        self.balanced_assignments = balanced_assignments
+        self.r = r
+        self.W = W
+        self.small_circuits = small_circuits
+        self.L_W = L # Number of layers before W repeats
+
+        #Empty list for storing run data later
+        self.runs = []
+        self.run_by_name = {}
+
+    def run(self, L = 2, z = 2, bs = 2, run_name = None):
+
+        #Function parameters
+        L = int(L) # Number of layers
+        z = int(z) # Number of circuits in superposition
+        bs = int(bs) # Batch size
+
+        #Import network data as local variables
+        device = self.device
+        Dod = self.Dod
+        S = self.S
+        assignments_on = self.assignments_on
+        assignments = self.assignments
+        balanced_assignments = self.balanced_assignments
+        W = self.W
+        small_circuits = self.small_circuits
+        L_W = self.L_W
+        
+        #Run small circuits
+        x, active_circuits = small_circuits.run(L, z, bs)
+
+        #Large network initial values
+        A = torch.zeros(L, bs, 3*Dod, device=device)
+        A[0, :, :Dod] = torch.einsum('bti->bi', assignments_on[active_circuits])
+        A[0, :, Dod:2*Dod], A[0, :, Dod*2:] = torch.einsum('btn,bti->ibn', (assignments[1%L, active_circuits], x[1]))
+
+        est_x = torch.zeros(L, bs, z, 2, device=device)
+        est_x[0] = x[0]
+
+        #Running the large network: Layer 1
+        A[1] = torch.relu(A[0] + 1) - 1 #Coppying over everything from previous layer
+
+        est_x[1,:,:,0] = torch.einsum('btn,bn->bt', (assignments[1%L, active_circuits], A[1, :, Dod:2*Dod])) / S
+        est_x[1,:,:,1] = torch.einsum('btn,bn->bt', (assignments[1%L, active_circuits], A[1, :, Dod*2:])) / S
+
+        #Running the large network: Layer 2
+        A[2, :, :Dod] = A[1, :, :Dod] #Coppying over activation values from previous layer
+        A[2, :, Dod:] = torch.relu(torch.einsum('nm,bm->bn', (W[2%L_W, Dod:, Dod:], A[1, :, Dod:]))  #Rotating
+                        + 2 * torch.tile(torch.einsum('tn,tm,bm->bn', (balanced_assignments[2%L_W], assignments_on, A[1, :, :Dod])),
+                                        dims = (2,)) #Add 2 to active
+                        - 1) #bias = -1
+                                    
+        #All other layers
+        for l in range(3,L):
+            A[l] = torch.einsum('nm,bm->bn', (W[l%L_W], A[l-1]))
+            A[l, :, Dod:] = torch.relu(A[l, :, Dod:] - 1)
+
+
+        for l in range(2,L):
+            est_x[l,:,:,0] = torch.einsum('btn,bn->bt', (assignments[l%L_W, active_circuits], A[l, :, Dod:2*Dod])) / S - 1
+            est_x[l,:,:,1] = torch.einsum('btn,bn->bt', (assignments[l%L_W, active_circuits], A[l, :, Dod*2:])) / S - 1
+            
+
+        # Saving run data
+        run = RunData()
+        run.L = L
+        run.z = z
+        run.bs = bs
+        run.active_circuits = active_circuits
+        run.x = x
+        run.est_x = est_x
+        run.A = A
+        run.name = run_name
+
+        self.runs.append(run)
+
+        if run_name is not None:
+            if run_name in self.run_by_name:
+                print(f"Warning: Overwriting existing run with name '{run_name}'")
+            self.run_by_name[run_name] = run
+
+        return run

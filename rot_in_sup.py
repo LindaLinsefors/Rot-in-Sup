@@ -11,8 +11,7 @@ from assignments import maxT, comp_in_sup_assignment
 import importlib, networks
 importlib.reload(networks)
 
-from networks import RotInSupNetwork_4d as RotInSupNetwork
-from networks import SmallCircuits
+from networks import RotInSupNetwork_4d, RotInSupNetwork_3d
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # device = "cpu"
@@ -59,7 +58,7 @@ L=4
 z=1
 bs = 2
 
-smal_test_net = RotInSupNetwork(Dod,T,S)
+smal_test_net = RotInSupNetwork_4d(Dod,T,S)
 test_run = smal_test_net.run(L,z,bs)
 
 for k in range(z):
@@ -71,17 +70,8 @@ for k in range(z):
             print('est_x:', test_run.est_x[l,b,k], '\n')
 
 
-#%% Larger test
-#   Larger test
-Dod=600
-S=5
-T=4000
-L=5
-z=2
-bs=2
-
-test_net = RotInSupNetwork(Dod,T,S)
-test_run = test_net.run(L,z,bs)
+smal_test_net = RotInSupNetwork_3d(Dod,T,S)
+test_run = smal_test_net.run(L,z,bs)
 
 for k in range(z):
     for b in range(bs):
@@ -90,6 +80,122 @@ for k in range(z):
             print(f'l={l}')
             print('x:    ', test_run.x[l,b,k])
             print('est_x:', test_run.est_x[l,b,k], '\n')
+
+
+#%% Compare
+D=1200
+S=5
+T=1000
+L=7
+z=2
+bs=1000
+
+# Create lists to store results for plotting
+mse_results = []
+ste_results = []
+labels = []
+
+test_net = RotInSupNetwork_3d(D/3,T,S,L,balance=True)
+test_run = test_net.run(L,z,bs)
+e = test_run.x - test_run.est_x
+mse = (e ** 2).mean((1,2)).sum((-1,))
+ste = mse**0.5
+mse_results.append(mse)
+ste_results.append(ste)
+labels.append('d=3 Network, balance=True')
+
+test_net = RotInSupNetwork_3d(D/3,T,S,L,balance=False)
+test_run = test_net.run(L,z,bs)
+e = test_run.x - test_run.est_x
+mse = (e ** 2).mean((1,2)).sum((-1,))
+ste = mse**0.5
+mse_results.append(mse)
+ste_results.append(ste)
+labels.append('d=3 Network, balance=False')
+
+test_net = RotInSupNetwork_4d(D/4,T,S)
+test_run = test_net.run(L,z,bs)
+e = test_run.x - test_run.est_x
+mse = (e ** 2).mean((1,2)).sum((-1,))
+ste = mse**0.5
+mse_results.append(mse)
+ste_results.append(ste)
+labels.append('d=4 Network')
+
+
+#%% Compare
+D=1200
+S=5
+T=1000
+L=7
+z=2
+bs=1000
+
+# Create lists to store results for plotting
+mse_results = []
+ste_results = []
+labels = []
+
+test_net = RotInSupNetwork_3d(D/3,T,S,2,balance=True)
+test_run = test_net.run(L,z,bs)
+e = test_run.x - test_run.est_x
+mse = (e ** 2).mean((1,2)).sum((-1,))
+ste = mse**0.5
+mse_results.append(mse)
+ste_results.append(ste)
+labels.append('d=3 Network, balance=True, L_W = 2')
+
+test_net = RotInSupNetwork_3d(D/3,T,S,2,balance=False)
+test_run = test_net.run(L,z,bs)
+e = test_run.x - test_run.est_x
+mse = (e ** 2).mean((1,2)).sum((-1,))
+ste = mse**0.5
+mse_results.append(mse)
+ste_results.append(ste)
+labels.append('d=3 Network, balance=False, L_W = 2')
+
+test_net = RotInSupNetwork_3d(D/3,T,S,L,balance=True)
+test_run = test_net.run(L,z,bs)
+e = test_run.x - test_run.est_x
+mse = (e ** 2).mean((1,2)).sum((-1,))
+ste = mse**0.5
+mse_results.append(mse)
+ste_results.append(ste)
+labels.append('d=3 Network, balance=True, L_W = L')
+
+test_net = RotInSupNetwork_3d(D/3,T,S,L,balance=False)
+test_run = test_net.run(L,z,bs)
+e = test_run.x - test_run.est_x
+mse = (e ** 2).mean((1,2)).sum((-1,))
+ste = mse**0.5
+mse_results.append(mse)
+ste_results.append(ste)
+labels.append('d=3 Network, balance=False, L_W = L')
+
+#%% Plotting the results
+#   Plotting the results
+
+# Plot MSE
+plt.figure(figsize=(10, 5))
+plt.subplot(1, 2, 1)
+for i, mse in enumerate(mse_results):
+    plt.plot(mse, label=labels[i], marker='o')
+plt.xlabel('Layer')
+plt.ylabel('Mean Squared Error')
+plt.title(f'D={D}, T={T}, S={S}, z={z}, batch size={bs}')
+plt.legend()
+
+# Plot STE
+plt.subplot(1, 2, 2)
+for i, ste in enumerate(ste_results):
+    plt.plot(ste, label=labels[i], marker='o')
+plt.xlabel('Layer')
+plt.ylabel('Standard Error')
+plt.title(f'D={D}, T={T}, S={S}, z={z}, batch size={bs}')
+plt.legend()
+
+plt.tight_layout()
+plt.show()
 
 # %%
 Dod=600
@@ -227,132 +333,3 @@ print(mse)
 print((z-1)/Dod)
 
 # %%
-Dod=5
-S=2
-T=2
-L=3
-z=1
-bs = 2
-device='cpu'
-L=2
-balance = False
-
-#Small circuits
-small_circuits = SmallCircuits(T, device)
-r = small_circuits.r
-
-#Function parameters
-Dod = int(Dod) # Number of neurons in the large network divided by 4
-T = int(T) # Number of small circuits in superposition
-S = int(S) # Number of large network neurons used by each small circuit neuron
-L = int(L) # Number of layers before W repeats
-
-#Embedding assignments for the on indicator
-assignments_on = torch.randn(T, Dod, device=device)
-assignments_on = assignments_on / assignments_on.norm(dim=1, keepdim=True)
-
-#Embedding assignments for the vector values
-assignments = torch.zeros(L, T, Dod)
-
-assignments[0], _ = comp_in_sup_assignment(T, Dod, S, device)
-
-for l in range(1,L):
-    shuffle = torch.randperm(T, device=device)
-    assignments[l] = assignments[0,shuffle]
-
-#Used for corelated computations only
-if balance:
-    #Slightly negative for non assigned neurons s.t. balanced_assignments.mean()=0
-    balanced_assignments = assignments * (1 + S/(Dod - S)) - torch.ones_like(assignments) * S/(Dod - S) 
-else:
-    balanced_assignments = assignments
-
-#Used as index to get assigment from previous layer
-previous = torch.roll(torch.arange(0, T, device=device), shifts=1)
-
-#One vector
-one = torch.ones(2, device=device)
-
-#Large network weight matrices
-W = torch.zeros(L, 3*Dod, 3*Dod, device=device)
-
-
-#Preserving activation indicators
-W[:, :Dod, :Dod] = torch.eye(Dod, device=device)[None, :, :]
-
-#Adding 2 to active circuit neurons and suptracting rotation of one-vector
-W[:, Dod:2*Dod, :Dod], W[:, 2*Dod:, :Dod] = (
-            2 * torch.einsum('ltn,tm,i->ilnm', (balanced_assignments, assignments_on, one)) 
-            - torch.einsum('ltn,tm,tij,j->ilnm', (assignments, assignments_on, r, one)) )
-
-#Rotating
-((W[:, Dod:2*Dod, Dod:2*Dod], W[:, Dod:2*Dod, 2*Dod:]), 
-( W[:, 2*Dod:,    Dod:2*Dod], W[:, 2*Dod:,    2*Dod:])) = (
-            torch.einsum('ltn,ltm,tij->ijlnm', (assignments, assignments[previous], r)) / S)
-
-L_W = L #Number of layers before W repeats
-
-
-# %%
-
-
-L = 5
-z = 1
-bs = 1
-run_name = None
-
-#Function parameters
-L = int(L) # Number of layers
-z = int(z) # Number of circuits in superposition
-bs = int(bs) # Batch size
-
-#Import network data as local variables
-#Fill in later
-
-#Run small circuits
-x, active_circuits = small_circuits.run(L, z, bs)
-
-#Large network initial values
-A = torch.zeros(L, bs, 3*Dod, device=device)
-A[0, :, :Dod] = torch.einsum('bti->bi', assignments_on[active_circuits])
-A[0, :, Dod:2*Dod], A[0, :, Dod*2:] = torch.einsum('btn,bti->ibn', (assignments[1%L, active_circuits], x[1]))
-
-est_x = torch.zeros(L, bs, z, 2, device=device)
-est_x[0] = x[0]
-
-#Running the large network: Layer 1
-A[1] = torch.relu(A[0] + 1) - 1 #Coppying over everything from previous layer
-
-est_x[1,:,:,0] = torch.einsum('btn,bn->bt', (assignments[1%L, active_circuits], A[1, :, Dod:2*Dod])) / S
-est_x[1,:,:,1] = torch.einsum('btn,bn->bt', (assignments[1%L, active_circuits], A[1, :, Dod*2:])) / S
-
-#Running the large network: Layer 2
-A[2, :, :Dod] = A[1, :, :Dod] #Coppying over activation values from previous layer
-A[2, :, Dod:] = torch.relu(torch.einsum('nm,bm->bn', (W[2%L_W, Dod:, Dod:], A[1, :, Dod:]))  #Rotating 
-                 + 2 * torch.tile(torch.einsum('tn,tm,bm->bn', (balanced_assignments[2%L_W], assignments_on, A[1, :, :Dod])), 
-                                  dims = (2,)) #Add 2 to active
-                 - 1) #bias = -1
-                             
-#All other layers
-for l in range(3,L):
-    A[l] = torch.einsum('nm,bm->n', (W[l%L_W], A[l-1]))
-    A[l, :, Dod:] = torch.relu(A[l, :, Dod:] - 1)
-
-
-for l in range(2,L):
-    est_x[l,:,:,0] = torch.einsum('btn,bn->bt', (assignments[l%L_W, active_circuits], A[l, :, Dod:2*Dod])) / S - 1
-    est_x[l,:,:,1] = torch.einsum('btn,bn->bt', (assignments[l%L_W, active_circuits], A[l, :, Dod*2:])) / S - 1
-    
-
-#%%
-
-for k in range(z):
-    for b in range(bs):
-        print(f'\n circuit {k} in batch {b}\n')
-        for l in range(L):
-            print(f'l={l}')
-            print('x:    ', x[l,b,k])
-            print('est_x:', est_x[l,b,k], '\n')
-
-# %%
-
