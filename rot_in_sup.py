@@ -6,6 +6,11 @@ import matplotlib.pyplot as plt
 import torch
 import tqdm
 from assignments import maxT, comp_in_sup_assignment
+
+#Make sure networks.py is reloaded
+import importlib, networks
+importlib.reload(networks)
+
 from networks import RotInSupNetwork_4d as RotInSupNetwork
 from networks import SmallCircuits
 
@@ -328,7 +333,7 @@ A[2, :, Dod:] = torch.relu(torch.einsum('bnm,bm->bn', (W[2%L_W, Dod:, Dod:], A[1
                              
 #All other layers
 for l in range(3,L):
-    A[l] = torch.einsum('nm,bm->n' (W[l%L_w], A[l-1]))
+    A[l] = torch.einsum('nm,bm->n' (W[l%L_W], A[l-1]))
     A[l, :, Dod:] = torch.relu(A[l, :, Dod:] - 1)
 
 

@@ -38,6 +38,8 @@ class SmallCircuits:
         """Run all small circuits on input random inputs"""
 
         x = torch.zeros(L, bs, z, 2, device=device)
+        T = self.T
+        r = self.r
 
         #Inputs
         active_circuits = torch.randint(T, (bs, z), device=device)
@@ -47,7 +49,7 @@ class SmallCircuits:
         
         #Running the small circuits
         for l in range(1,L):
-            x[l] = torch.einsum('btij,btj->bti', self.r[active_circuits], x[l-1])
+            x[l] = torch.einsum('btij,btj->bti', r[active_circuits], x[l-1])
 
         return x, active_circuits
 
