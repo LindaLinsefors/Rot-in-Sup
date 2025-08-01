@@ -75,7 +75,7 @@ S=2
 T=2
 L=4
 z=1
-bs = 2
+bs=2
 
 smal_test_net_4d = RotInSupNetwork_4d(Dod,T,S,device=device)
 test_run_4d = smal_test_net_4d.run(L,z,bs)
@@ -270,6 +270,37 @@ labels.append('balance=False')
 
 title = f'D={D}, T={T}, S={S}, z={z}, batch size={bs}, \nd=3, L_W=L'
 
+
+
+
+#%% Compare z values for d=4
+#   Compare z values for d=4
+
+D=1200
+S=5
+T=1000
+L=7
+bs=1000
+
+zs = [1, 2, 3, 4, 5]
+
+# Create lists to store results for plotting
+mse_results = []
+ste_results = []
+labels = []
+
+for z in zs:
+    test_net = RotInSupNetwork_4d(D/4,T,S,device=device)
+    test_run = test_net.run(L,z,bs)
+    e = test_run.x - test_run.est_x
+    mse = (e ** 2).mean((1,2)).sum((-1,))
+    ste = mse**0.5
+    mse_results.append(mse)
+    ste_results.append(ste)
+    labels.append(f'z={z}')
+
+title = f'D={D}, d=4, T={T}, S={S}, batch size={bs}'
+
 #%% Plotting the results
 #   Plotting the results
 
@@ -281,6 +312,7 @@ for i, mse in enumerate(mse_results):
 plt.xlabel('Layer')
 plt.ylabel('Mean Squared Error')
 plt.title(title)
+plt.grid(True)
 plt.legend()
 
 # Plot STE
@@ -290,10 +322,12 @@ for i, ste in enumerate(ste_results):
 plt.xlabel('Layer')
 plt.ylabel('Standard Error')
 plt.title(title)
+plt.grid(True)
 plt.legend()
 
 plt.tight_layout()
 plt.show()
+
 
 #%%
 ######################################################################################
@@ -363,28 +397,6 @@ print(f"Active neurons: \n{active_neurons}")
 # %%
 active_circuits = run.active_circuits[0]
 compact_assignments = run.net.compact_assignments
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 ######################################################################################
@@ -526,4 +538,100 @@ mse=((est_active-1)**2).mean()
 print(mse)
 print((z-1)/Dod)
 
+# %%#######################################################
+#   Worst case behaviour
+###########################################################
+
+D=1200
+S=5
+T=1000
+L=8
+N=5
+
+for n in range(N):
+    active_circuits = torch.tensor(range(T), device=device).reshape(T,1)
+    net = RotInSupNetwork_4d(D/4,T,S,device=device)
+    run = net.run(L, active_circuits=active_circuits)
+
+    error = (((run.x - run.est_x)**2).sum(-1)**0.5)[:,:,0]
+    max_error, _ = error.max(1)
+    if n == 0:
+        plt.plot(max_error.cpu().numpy(), color='blue', marker='o', markersize=2, alpha=0.5,
+                 label = 'd=4')
+    else:
+        plt.plot(max_error.cpu().numpy(), color='blue', marker='o', markersize=2, alpha=0.5)
+
+    active_circuits = torch.tensor(range(T), device=device).reshape(T,1)
+    net = RotInSupNetwork_3d(D/3,T,S,device=device)
+    run = net.run(L, active_circuits=active_circuits)
+
+    error = (((run.x - run.est_x)**2).sum(-1)**0.5)[:,:,0]
+    max_error, _ = error.max(1)
+    if n == 0:
+        plt.plot(max_error.cpu().numpy(), color='red', marker='o', markersize=2, alpha=0.5,
+                 label = 'd=3')
+    else:
+        plt.plot(max_error.cpu().numpy(), color='red', marker='o', markersize=2, alpha=0.5)
+plt.grid()
+plt.xlabel('Layer')
+plt.ylabel('Max Error')
+plt.title(f'D={D}, D/d={Dod}, T={T}, z=1, S={S}')
+plt.legend()
+plt.show()
+# %%
+D=1200
+S=2
+T=1000
+L=8
+N=5
+z=1
+
+if z == 1:
+    active_circuits = torch.tensor(range(T), device=device).reshape(T,1)
+elif z == 2:
+    active_circuits = torch.randint(T, (bs, z), device=device)
+    same = active_circuits[:,0] == active_circuits[:,1]
+    if same.any():
+        active_circuits[same, 1] = (active_circuits[same, 0] + 1) % T
+else:
+    raise ValueError("z must be 1 or 2")
+
+for n in range(N):
+    for d in [3,4]:
+        for S in [3,5]:
+        
+            if d == 4:
+                net = RotInSupNetwork_4d(D/4,T,S,device=device)
+                if S == 5:
+                    color = 'green'
+                else:
+                    color = 'blue'
+            else:
+                net = RotInSupNetwork_3d(D/3,T,S,device=device)
+                if S == 5:
+                    color = 'orange'
+                else:
+                    color = 'red'
+
+            run = net.run(L, active_circuits=active_circuits)
+
+            error = (((run.x - run.est_x)**2).sum(-1)**0.5)[:,:,0]
+            max_error, _ = error.max(1)
+
+            if n == 0:
+                plt.plot(max_error.cpu().numpy(), color=color, marker='o', markersize=2, alpha=0.5,
+                        label = f'd={d}, S={S}')
+            else:
+                plt.plot(max_error.cpu().numpy(), color=color, marker='o', markersize=2, alpha=0.5)
+
+plt.grid()
+plt.xlabel('Layer')
+plt.ylabel('Max Error')
+plt.title(f'D={D}, T={T}, z={z}')
+plt.legend()
+plt.xticks(range(L))
+y_min, y_max = plt.ylim()
+plt.yticks(range(int(y_max)))
+plt.grid(True)
+plt.show()
 # %%

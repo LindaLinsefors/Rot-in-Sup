@@ -34,7 +34,7 @@ class SmallCircuits:
         self.r[:,1,0] = sin
         self.r[:,1,1] = cos
 
-    def run(self, L, z, bs):
+    def run(self, L, z, bs, active_circuits=None):
         """Run all small circuits on input random inputs"""
 
         device = self.device
@@ -43,7 +43,17 @@ class SmallCircuits:
         r = self.r
 
         #Inputs
-        active_circuits = torch.randint(T, (bs, z), device=device)
+        if active_circuits is None:  # Generating random circuits
+            active_circuits = torch.randint(T, (bs, z), device=device)
+
+            # Replace any duplicates with non-duplicates
+            same = torch.zeros(bs, dtype=torch.bool, device=device)
+            for a in range(z):
+                for b in range(a):
+                    same += (active_circuits[:,a] == active_circuits[:,b])
+            n = same.sum()
+            active_circuits[same] = torch.tensor(range(z*n), device=device).reshape(n, z) % T
+        
         initial_angle = torch.rand(bs, z, device=device) * 2 * np.pi
         x[0, :, :, 0] = torch.cos(initial_angle)
         x[0, :, :, 1] = torch.sin(initial_angle)
@@ -131,12 +141,15 @@ class RotInSupNetwork_4d:
         self.run_by_name = {}
 
 
-    def run(self, L = 2, z = 2, bs = 2, run_name = None):
+    def run(self, L = 2, z = 2, bs = 2, run_name = None, active_circuits = None):
 
         #Function parameters
         L = int(L) # Number of layers
-        z = int(z) # Number of circuits in superposition
-        bs = int(bs) # Batch size
+        if active_circuits is None:
+            z = int(z) # Number of circuits in superposition
+            bs = int(bs) # Batch size
+        else:
+            bs, z = active_circuits.shape
 
         #Import network data as local variables
         device = self.device
@@ -149,7 +162,7 @@ class RotInSupNetwork_4d:
         small_circuits = self.small_circuits
 
         #Run small circuits
-        x, active_circuits = small_circuits.run(L, z, bs)
+        x, active_circuits = small_circuits.run(L, z, bs, active_circuits)
 
         #Bias
         B = torch.zeros(4*Dod, device=device)
@@ -297,12 +310,15 @@ class RotInSupNetwork_3d:
         self.runs = []
         self.run_by_name = {}
 
-    def run(self, L = 2, z = 2, bs = 2, run_name = None):
+    def run(self, L = 2, z = 2, bs = 2, run_name = None, active_circuits=None):
 
         #Function parameters
         L = int(L) # Number of layers
-        z = int(z) # Number of circuits in superposition
-        bs = int(bs) # Batch size
+        if active_circuits is None:
+            z = int(z) # Number of circuits in superposition
+            bs = int(bs) # Batch size
+        else:
+            bs, z = active_circuits.shape
 
         #Import network data as local variables
         device = self.device
@@ -370,3 +386,10 @@ class RotInSupNetwork_3d:
             self.run_by_name[run_name] = run
 
         return run
+    
+
+
+
+
+
+
