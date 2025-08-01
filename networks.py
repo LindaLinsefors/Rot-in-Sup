@@ -52,8 +52,8 @@ class SmallCircuits:
                 for b in range(a):
                     same += (active_circuits[:,a] == active_circuits[:,b])
             n = same.sum()
-            active_circuits[same] = torch.tensor(range(z*n), device=device).reshape(n, z) % T
-        
+            active_circuits[same] = torch.tensor(range(z*n), dtype=torch.int64, device=device).reshape(n, z) % T
+
         initial_angle = torch.rand(bs, z, device=device) * 2 * np.pi
         x[0, :, :, 0] = torch.cos(initial_angle)
         x[0, :, :, 1] = torch.sin(initial_angle)
