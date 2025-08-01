@@ -60,28 +60,23 @@ L=4
 z=1
 bs = 2
 
-smal_test_net = RotInSupNetwork_4d(Dod,T,S)
-test_run = smal_test_net.run(L,z,bs)
+smal_test_net_4d = RotInSupNetwork_4d(Dod,T,S)
+test_run_4d = smal_test_net_4d.run(L,z,bs)
 
-for k in range(z):
-    for b in range(bs):
-        print(f'\n circuit {k} in batch {b}\n')
-        for l in range(L):
-            print(f'l={l}')
-            print('x:    ', test_run.x[l,b,k])
-            print('est_x:', test_run.est_x[l,b,k], '\n')
+if (test_run_4d.x - test_run_4d.est_x).sum().abs() > 1e-6:
+    print("RotInSupNetwork_4d test failed: The output does not match the expected result.")
+else:
+    print("RotInSupNetwork_4d test passed: The output matches the expected result.")
+
+smal_test_net_3d = RotInSupNetwork_3d(Dod,T,S)
+test_run_3d = smal_test_net_3d.run(L,z,bs)
+
+if (test_run_3d.x - test_run_3d.est_x).sum().abs() > 1e-6:
+    print("RotInSupNetwork_3d test failed: The output does not match the expected result.")
+else:
+    print("RotInSupNetwork_3d test passed: The output matches the expected result.")
 
 
-smal_test_net = RotInSupNetwork_3d(Dod,T,S)
-test_run = smal_test_net.run(L,z,bs)
-
-for k in range(z):
-    for b in range(bs):
-        print(f'\n circuit {k} in batch {b}\n')
-        for l in range(L):
-            print(f'l={l}')
-            print('x:    ', test_run.x[l,b,k])
-            print('est_x:', test_run.est_x[l,b,k], '\n')
 
 
 #%% Compare 3d vs 4d
