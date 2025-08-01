@@ -297,6 +297,97 @@ plt.show()
 
 #%%
 ######################################################################################
+#   Looking for active neurons that shouldn't be active
+######################################################################################
+
+'''
+Counts active neurons in the large network
+Valid for layers 2 and onwards
+'''
+
+
+D=1200
+S=5
+T=1000
+L=8
+z=1
+bs=10
+d=3
+
+if d == 4:
+    net = RotInSupNetwork_4d(D/d,T,S,device=device)
+if d == 3:
+    net = RotInSupNetwork_3d(D/d,T,S,L,device=device)
+
+run = net.run(L,z,bs)
+other_run = net.run(L,z,bs)
+
+A = run.A
+d = run.net.d
+z = run.z
+L = run.L
+active_circuits = run.active_circuits
+Dod = run.net.Dod
+
+
+if d == 4:
+    L_W = 2
+    assignments = torch.zeros(L_W, T, Dod, device=device)
+    assignments[1] = run.net.assignments_1
+    assignments[0] = run.net.assignments_2
+elif d == 3:
+    L_W = run.net.L_W
+    assignments = run.net.assignments
+else:
+    Exception("Unexpected value for d")
+
+inf_assignments = torch.zeros_like(assignments)
+inf_assignments[assignments > 0] = float('inf')
+
+A_subt = A[:,:,(d-2)*Dod:].clone()
+
+for l in range(1,L):
+    subtract = torch.einsum('btn->bn',(inf_assignments[l%L_W, active_circuits]))
+    A_subt[l, :, :Dod] -= subtract
+    A_subt[l, :, Dod:] -= subtract
+A_subt[0] = A_subt[1]
+
+active_neurons_that_should_not_be_active = (A_subt > 0).sum(-1)
+active_neurons = (A[:,:,(d-2)*Dod:] > 0).sum(-1)
+active_neurons[0] = active_neurons[1]
+
+print(f"D={D}, S={S}, T={T}, L={L}, z={z}, d={d}")
+print(f"Active neurons that should not be active: \n{active_neurons_that_should_not_be_active}")  
+print(f"Active neurons: \n{active_neurons}")
+
+# %%
+active_circuits = run.active_circuits[0]
+compact_assignments = run.net.compact_assignments
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+######################################################################################
 #   Somme older plots
 ######################################################################################
 

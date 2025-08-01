@@ -124,6 +124,7 @@ class RotInSupNetwork_4d:
         self.W1 = W1
         self.W2 = W2
         self.small_circuits = small_circuits
+        self.d = 4
 
         #Empty list for storing run data later
         self.runs = []
@@ -200,6 +201,7 @@ class RotInSupNetwork_4d:
         run.est_x = est_x
         run.A = A
         run.name = run_name
+        run.net = self
 
         self.runs.append(run)
 
@@ -284,11 +286,12 @@ class RotInSupNetwork_3d:
         self.assignments_on = assignments_on
         self.assignments = assignments
         self.balanced_assignments = balanced_assignments
-        self
+        self.compact_assignments = compact_assignments
         self.r = r
         self.W = W
         self.small_circuits = small_circuits
-        self.L_W = L # Number of layers before W repeats
+        self.L_W = L # Number of layers before W repeatss
+        self.d = 3
 
         #Empty list for storing run data later
         self.runs = []
@@ -357,6 +360,7 @@ class RotInSupNetwork_3d:
         run.est_x = est_x
         run.A = A
         run.name = run_name
+        run.net = self
 
         self.runs.append(run)
 
