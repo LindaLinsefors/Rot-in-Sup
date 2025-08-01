@@ -15,6 +15,9 @@ from assignments import (
     comp_in_sup_assignment,
     test_assignments,
     slow_test_assignments,
+    expected_overlap_error,
+    propability_of_overlap,
+    expected_squared_overlap_error
 )
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -57,18 +60,6 @@ except:
 assignments, compact_assignments = comp_in_sup_assignment(T=2000, Dod=500, S=5, device=device)
 test_assignments(assignments, S=5, device=device)
 # %%
-
-def expected_overlap_error(T, Dod, S):
-    if Dod >= T * S:
-        return 0
-    else:
-        return (T * S/Dod - 1) / (T - 1)
-    
-def propability_of_overlap(T, Dod, S): 
-    return expected_overlap_error(T, Dod, S) * S
-
-def expected_squared_overlap_error(T, Dod, S):
-    return expected_overlap_error(T, Dod, S) / S
 
 
 print(expected_overlap_error(2000, 500, 5))

@@ -212,7 +212,7 @@ class RotInSupNetwork_4d:
 
 
 class RotInSupNetwork_3d:
-    def __init__(self, Dod=Dod, T=T, S=S, L=2, balance=False, improved_balance=False, device=device):
+    def __init__(self, Dod=Dod, T=T, S=S, L=2, balance=True, improved_balance=True, device=device):
 
         #Function parameters
         Dod = int(Dod) # Number of neurons in the large network divided by 4

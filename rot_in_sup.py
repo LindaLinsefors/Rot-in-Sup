@@ -208,6 +208,51 @@ for S in tqdm.tqdm(range(2,5+1)):
 
 title = f'D={D}, D/d={int(D/4)}, T={T}, L={L}, z={z}, batch size={bs}'
 
+
+#%% Compare balance
+#   Compare balance
+D=1200
+S=5
+T=1000
+L=7
+z=3
+bs=10000
+
+# Create lists to store results for plotting
+mse_results = []
+ste_results = []
+labels = []
+
+
+test_net = RotInSupNetwork_3d(D/3,T,S,L,balance=True, improved_balance=True)
+test_run = test_net.run(L,z,bs)
+e = test_run.x - test_run.est_x
+mse = (e ** 2).mean((1,2)).sum((-1,))
+ste = mse**0.5
+mse_results.append(mse)
+ste_results.append(ste)
+labels.append('balance=True, improved=True')
+
+test_net = RotInSupNetwork_3d(D/3,T,S,L,balance=True, improved_balance=False)
+test_run = test_net.run(L,z,bs)
+e = test_run.x - test_run.est_x
+mse = (e ** 2).mean((1,2)).sum((-1,))
+ste = mse**0.5
+mse_results.append(mse)
+ste_results.append(ste)
+labels.append('balance=True, improved=False')
+
+test_net = RotInSupNetwork_3d(D/3,T,S,L,balance=False)
+test_run = test_net.run(L,z,bs)
+e = test_run.x - test_run.est_x
+mse = (e ** 2).mean((1,2)).sum((-1,))
+ste = mse**0.5
+mse_results.append(mse)
+ste_results.append(ste)
+labels.append('balance=False')
+
+title = f'D={D}, T={T}, S={S}, z={z}, batch size={bs}, \nd=3, L_W=L'
+
 #%% Plotting the results
 #   Plotting the results
 
