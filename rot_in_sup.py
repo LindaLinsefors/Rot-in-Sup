@@ -1,5 +1,10 @@
-#%% Setup
+#%% Setup  
 #   Setup
+
+######################################################################################
+#   Setup
+#   Immporting stuff, and setting up the device
+######################################################################################
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -19,7 +24,14 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # device = "cpu"
 print(f'device = {device}')
 
-#%% Customizing the __repr__ method of torch.Tensor to save images
+#%%
+
+######################################################################################
+#   Changing what print does for torch.Tensor
+#   First cell set up custom print, second cell reset it
+######################################################################################
+
+#%% Customizing the __repr__ method of torch.Tensor to save images 
 #   Customizing the __repr__ method of torch.Tensor to save images
 
 try:
@@ -53,6 +65,11 @@ except:
 
 #%% Small test
 #   Small test
+
+######################################################################################
+#   Test that the code runs OK
+######################################################################################
+
 Dod=5
 S=2
 T=2
@@ -76,8 +93,13 @@ if (test_run_3d.x - test_run_3d.est_x).sum().abs() > 1e-6:
 else:
     print("RotInSupNetwork_3d test passed: The output matches the expected result.")
 
-
-
+#%% 
+######################################################################################
+#   Compare Mean Squared Error (MSE) and Standard Error (STE) 
+#   for various network configurations
+#
+#   Last cell plot the output of previously run cell
+######################################################################################
 
 #%% Compare 3d vs 4d
 #   Compare 3d vs 4d
@@ -272,6 +294,11 @@ plt.legend()
 
 plt.tight_layout()
 plt.show()
+
+#%%
+######################################################################################
+#   Somme older plots
+######################################################################################
 
 # %%
 Dod=600
