@@ -229,13 +229,15 @@ class RotInSupNetwork_3d:
         assignments_on = assignments_on / assignments_on.norm(dim=1, keepdim=True)
 
         #Embedding assignments for the vector values
-        assignments = torch.zeros(L, T, Dod)
+        assignments = torch.zeros(L, T, Dod, device=device)
+        compact_assignments = torch.zeros(L, T, S, device=device, dtype=torch.int32)
 
-        assignments[0], _ = comp_in_sup_assignment(T, Dod, S, device)
+        assignments[0], compact_assignments[0] = comp_in_sup_assignment(T, Dod, S, device)
 
         for l in range(1,L):
             shuffle = torch.randperm(T, device=device)
             assignments[l] = assignments[0,shuffle]
+            compact_assignments[l] = compact_assignments[0,shuffle]
 
         #Used for corelated computations only
         if balance:
@@ -281,6 +283,7 @@ class RotInSupNetwork_3d:
         self.assignments_on = assignments_on
         self.assignments = assignments
         self.balanced_assignments = balanced_assignments
+        self
         self.r = r
         self.W = W
         self.small_circuits = small_circuits
