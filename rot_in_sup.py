@@ -77,7 +77,7 @@ L=4
 z=1
 bs = 2
 
-smal_test_net_4d = RotInSupNetwork_4d(Dod,T,S)
+smal_test_net_4d = RotInSupNetwork_4d(Dod,T,S,device=device)
 test_run_4d = smal_test_net_4d.run(L,z,bs)
 
 if (test_run_4d.x - test_run_4d.est_x).sum().abs() > 1e-6:
@@ -85,7 +85,7 @@ if (test_run_4d.x - test_run_4d.est_x).sum().abs() > 1e-6:
 else:
     print("RotInSupNetwork_4d test passed: The output matches the expected result.")
 
-smal_test_net_3d = RotInSupNetwork_3d(Dod,T,S)
+smal_test_net_3d = RotInSupNetwork_3d(Dod,T,S,device=device)
 test_run_3d = smal_test_net_3d.run(L,z,bs)
 
 if (test_run_3d.x - test_run_3d.est_x).sum().abs() > 1e-6:
@@ -115,7 +115,7 @@ mse_results = []
 ste_results = []
 labels = []
 
-test_net = RotInSupNetwork_3d(D/3,T,S,L,balance=True)
+test_net = RotInSupNetwork_3d(D/3,T,S,L,balance=True, device=device)
 test_run = test_net.run(L,z,bs)
 e = test_run.x - test_run.est_x
 mse = (e ** 2).mean((1,2)).sum((-1,))
@@ -124,7 +124,7 @@ mse_results.append(mse)
 ste_results.append(ste)
 labels.append('d=3 Network, balance=True')
 
-test_net = RotInSupNetwork_3d(D/3,T,S,L,balance=False)
+test_net = RotInSupNetwork_3d(D/3,T,S,L,balance=False, device=device)
 test_run = test_net.run(L,z,bs)
 e = test_run.x - test_run.est_x
 mse = (e ** 2).mean((1,2)).sum((-1,))
@@ -133,7 +133,7 @@ mse_results.append(mse)
 ste_results.append(ste)
 labels.append('d=3 Network, balance=False')
 
-test_net = RotInSupNetwork_4d(D/4,T,S)
+test_net = RotInSupNetwork_4d(D/4,T,S,device=device)
 test_run = test_net.run(L,z,bs)
 e = test_run.x - test_run.est_x
 mse = (e ** 2).mean((1,2)).sum((-1,))
@@ -277,7 +277,7 @@ title = f'D={D}, T={T}, S={S}, z={z}, batch size={bs}, \nd=3, L_W=L'
 plt.figure(figsize=(10, 5))
 plt.subplot(1, 2, 1)
 for i, mse in enumerate(mse_results):
-    plt.plot(mse, label=labels[i], marker='o')
+    plt.plot(mse.cpu(), label=labels[i], marker='o')
 plt.xlabel('Layer')
 plt.ylabel('Mean Squared Error')
 plt.title(title)
@@ -286,7 +286,7 @@ plt.legend()
 # Plot STE
 plt.subplot(1, 2, 2)
 for i, ste in enumerate(ste_results):
-    plt.plot(ste, label=labels[i], marker='o')
+    plt.plot(ste.cpu(), label=labels[i], marker='o')
 plt.xlabel('Layer')
 plt.ylabel('Standard Error')
 plt.title(title)

@@ -37,6 +37,7 @@ class SmallCircuits:
     def run(self, L, z, bs):
         """Run all small circuits on input random inputs"""
 
+        device = self.device
         x = torch.zeros(L, bs, z, 2, device=device)
         T = self.T
         r = self.r
