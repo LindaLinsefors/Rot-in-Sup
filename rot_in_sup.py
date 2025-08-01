@@ -5,13 +5,15 @@ import numpy as np
 import matplotlib.pyplot as plt
 import torch
 import tqdm
-from assignments import maxT, comp_in_sup_assignment
 
-#Make sure networks.py is reloaded
-import importlib, networks
+#Make sure networks.py and assignments.py are reloaded
+import importlib, networks, assignments
 importlib.reload(networks)
+importlib.reload(assignments)
 
 from networks import RotInSupNetwork_4d, RotInSupNetwork_3d
+from assignments import maxT
+
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # device = "cpu"

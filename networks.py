@@ -10,7 +10,7 @@ bringing the neurons per circuit up to d=3, at the cost of higer error.
 
 
 import torch
-from assignments import comp_in_sup_assignment
+from assignments import comp_in_sup_assignment, expected_overlap_error
 import numpy as np
 
 #Default variables
@@ -212,7 +212,7 @@ class RotInSupNetwork_4d:
 
 
 class RotInSupNetwork_3d:
-    def __init__(self, Dod=Dod, T=T, S=S, L=2, balance=False, device=device):
+    def __init__(self, Dod=Dod, T=T, S=S, L=2, balance=False, improved_balance=False, device=device):
 
         #Function parameters
         Dod = int(Dod) # Number of neurons in the large network divided by 4
@@ -239,8 +239,14 @@ class RotInSupNetwork_3d:
 
         #Used for corelated computations only
         if balance:
-            #Slightly negative for non assigned neurons s.t. balanced_assignments.mean()=0
-            balanced_assignments = assignments * (1 + S/(Dod - S)) - torch.ones_like(assignments) * S/(Dod - S) 
+            if not improved_balance:
+                #Slightly negative for non assigned neurons s.t. balanced_assignments.mean()=0
+                balanced_assignments = assignments * (1 + S/(Dod - S)) - torch.ones_like(assignments) * S/(Dod - S) 
+            else:
+                #Taking into account that the expected overlap error slighly less than S/Dod
+                e = expected_overlap_error(T, Dod, S)
+                x = e / (1-e)
+                balanced_assignments = assignments * (1 + x) - torch.ones_like(assignments) * x
         else:
             balanced_assignments = assignments
 

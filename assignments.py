@@ -192,3 +192,17 @@ def slow_test_assignments(assignments, S):
         return True
     else:
         return False
+
+def expected_overlap_error(T, Dod, S):
+    if Dod >= T * S:
+        return 0
+    else:
+        return (T * S/Dod - 1) / (T - 1)
+    
+def propability_of_overlap(T, Dod, S): 
+    return expected_overlap_error(T, Dod, S) * S
+
+def expected_squared_overlap_error(T, Dod, S):
+    return expected_overlap_error(T, Dod, S) / S
+
+
