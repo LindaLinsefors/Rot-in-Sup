@@ -82,12 +82,13 @@ for k in range(z):
             print('est_x:', test_run.est_x[l,b,k], '\n')
 
 
-#%% Compare
+#%% Compare 3d vs 4d
+#   Compare 3d vs 4d
 D=1200
 S=5
 T=1000
 L=7
-z=2
+z=1
 bs=1000
 
 # Create lists to store results for plotting
@@ -122,13 +123,17 @@ mse_results.append(mse)
 ste_results.append(ste)
 labels.append('d=4 Network')
 
+title = f'D={D}, T={T}, S={S}, z={z}, batch size={bs}'
 
-#%% Compare
+
+
+#%% Compare L_W=2 vs L_W=L
+#   Compare L_W=2 vs L_W=L
 D=1200
 S=5
-T=1000
+T=2000
 L=7
-z=2
+z=1
 bs=1000
 
 # Create lists to store results for plotting
@@ -172,6 +177,35 @@ mse_results.append(mse)
 ste_results.append(ste)
 labels.append('d=3 Network, balance=False, L_W = L')
 
+title = f'D={D}, T={T}, S={S}, z={z}, batch size={bs}'
+
+
+
+#%% Compare S for d=4
+#   Compare S for d=4
+D=1200
+T=1000
+L=7
+z=1
+bs=1000
+
+# Create lists to store results for plotting
+mse_results = []
+ste_results = []
+labels = []
+
+for S in tqdm.tqdm(range(2,5+1)):
+    test_net = RotInSupNetwork_4d(D/4,T,S)
+    test_run = test_net.run(L,z,bs)
+    e = test_run.x - test_run.est_x
+    mse = (e ** 2).mean((1,2)).sum((-1,))
+    ste = mse**0.5
+    mse_results.append(mse)
+    ste_results.append(ste)
+    labels.append('S = ' + str(S))
+
+title = f'D={D}, D/d={int(D/4)}, T={T}, L={L}, z={z}, batch size={bs}'
+
 #%% Plotting the results
 #   Plotting the results
 
@@ -182,7 +216,7 @@ for i, mse in enumerate(mse_results):
     plt.plot(mse, label=labels[i], marker='o')
 plt.xlabel('Layer')
 plt.ylabel('Mean Squared Error')
-plt.title(f'D={D}, T={T}, S={S}, z={z}, batch size={bs}')
+plt.title(title)
 plt.legend()
 
 # Plot STE
@@ -191,7 +225,7 @@ for i, ste in enumerate(ste_results):
     plt.plot(ste, label=labels[i], marker='o')
 plt.xlabel('Layer')
 plt.ylabel('Standard Error')
-plt.title(f'D={D}, T={T}, S={S}, z={z}, batch size={bs}')
+plt.title(title)
 plt.legend()
 
 plt.tight_layout()
@@ -205,7 +239,7 @@ T=4000
 L=8
 N = 3600
 
-net = RotInSupNetwork(Dod,T,S)
+net = RotInSupNetwork_4d(Dod,T,S)
 for z in range(1,5):
    bs = N/z
    run = net.run(L,z,bs, run_name=z)
@@ -248,7 +282,7 @@ bs = 36000
 
 netS = {}
 for S in tqdm.tqdm(range(2,8)):
-    netS[S] = RotInSupNetwork(Dod,T,S)
+    netS[S] = RotInSupNetwork_4d(Dod,T,S)
     for z in range(1,5):
         run = netS[S].run(L,z,bs, run_name=z)
 
