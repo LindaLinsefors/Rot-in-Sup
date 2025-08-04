@@ -10,7 +10,7 @@ bringing the neurons per circuit up to d=3, at the cost of higer error.
 
 
 import torch
-from assignments import comp_in_sup_assignment, expected_overlap_error
+from assignments import comp_in_sup_assignment, expected_overlap_error, expected_squared_overlap_error
 import numpy as np
 
 #Default variables
@@ -141,7 +141,7 @@ class RotInSupNetwork_4d:
         self.run_by_name = {}
 
 
-    def run(self, L = 2, z = 2, bs = 2, run_name = None, active_circuits = None):
+    def run(self, L = 2, z = 2, bs = 2, run_name = None, active_circuits = None, ideal=False):
 
         #Function parameters
         L = int(L) # Number of layers
@@ -181,12 +181,24 @@ class RotInSupNetwork_4d:
         A[1, :, 2*Dod:3*Dod] = torch.relu(A[0, :, 2*Dod:3*Dod] + 1) - 1 + A[1, :, :Dod]
         A[1, :, 3*Dod:     ] = torch.relu(A[0, :, 3*Dod:     ] + 1) - 1 + A[1, :, :Dod]
 
+        
+
         #Running the large network: All other layers
+        if ideal:
+            mask_1 = torch.einsum('bti->bi', assignments_1[active_circuits]).clamp(max=1.0)
+            mask_2 = torch.einsum('bti->bi', assignments_2[active_circuits]).clamp(max=1.0)
+
         for l in range(2,L):
             if l%2 == 1: # Odd layers
                 A[l] = torch.relu(torch.einsum('ij,bj->bi', W1, A[l-1]) + B[None,:])
+                if ideal:
+                    A[l,:,2*Dod:3*Dod] *= mask_1
+                    A[l,:,3*Dod:] *= mask_1
             else: # Even layers
                 A[l] = torch.relu(torch.einsum('ij,bj->bi', W2, A[l-1]) + B[None,:])
+                if ideal:
+                    A[l,:,2*Dod:3*Dod] *= mask_2
+                    A[l,:,3*Dod:] *= mask_2
 
         #Extracting estimates for x in each layer
         est_x = torch.zeros(L, bs, z, 2, device=device)
@@ -390,6 +402,16 @@ class RotInSupNetwork_3d:
 
 
 
+def semi_correlated(L):
+    return (L//2)**2 + ((L+1)//2)**2
 
+def expected_mse_4d(T, Dod, L, z, naive=True):
+    if L == 0:
+        return 0
+    else:
+        if naive == False:
+            esor = expected_squared_overlap_error(T, Dod, S, naive=False)
+        else :
+            esor = 1/Dod
 
-
+        return T * esor**2 * (semi_correlated(L-1) + (z-1)*(L-1)) + (z-1)*esor*semi_correlated(L)

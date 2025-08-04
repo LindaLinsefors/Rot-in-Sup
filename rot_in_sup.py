@@ -16,8 +16,11 @@ import importlib, networks, assignments
 importlib.reload(networks)
 importlib.reload(assignments)
 
-from networks import RotInSupNetwork_4d, RotInSupNetwork_3d
-from assignments import maxT
+from networks import RotInSupNetwork_4d, RotInSupNetwork_3d, expected_mse_4d
+from assignments import (maxT, 
+                         expected_overlap_error, 
+                         expected_squared_overlap_error, 
+                         propability_of_overlap)
 
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -273,13 +276,46 @@ title = f'D={D}, T={T}, S={S}, z={z}, batch size={bs}, \nd=3, L_W=L'
 
 
 
-#%% Compare z values for d=4
-#   Compare z values for d=4
+#%% Compare values for d=4
+#   Compare values for d=4
 
 D=1200
-S=5
+S=3
 T=1000
-L=7
+L=5
+bs=1000
+
+zs = [1, 2, 3, 4, 5]
+
+# Create lists to store results for plotting
+mse_results = []
+ste_results = []
+labels = []
+expected_mses = []
+
+for z in tqdm.tqdm(zs):
+    test_net = RotInSupNetwork_4d(D/4,T,S,device=device)
+    test_run = test_net.run(L,z,bs,ideal=True)
+    e = test_run.x - test_run.est_x
+    mse = (e ** 2).mean((1,2)).sum((-1,))
+    ste = mse**0.5
+    mse_results.append(mse)
+    ste_results.append(ste)
+    labels.append(f'z={z}')
+    expected_mses.append([expected_mse_4d(T, D/4, L, z, naive=False) for L in range(L)])
+
+title = f'D={D}, d=4, T={T}, S={S}, batch size={bs}'
+
+plot_results_with_expected_mse(mse_results, ste_results, expected_mses, labels, title)
+
+
+#%% Compare z values for d=3
+#   Compare z values for d=3
+
+D=1200
+S=3
+T=1000
+L=20
 bs=1000
 
 zs = [1, 2, 3, 4, 5]
@@ -289,8 +325,9 @@ mse_results = []
 ste_results = []
 labels = []
 
-for z in zs:
-    test_net = RotInSupNetwork_4d(D/4,T,S,device=device)
+
+for z in tqdm.tqdm(zs):
+    test_net = RotInSupNetwork_3d(D/3,T,S,2,device=device)
     test_run = test_net.run(L,z,bs)
     e = test_run.x - test_run.est_x
     mse = (e ** 2).mean((1,2)).sum((-1,))
@@ -299,7 +336,8 @@ for z in zs:
     ste_results.append(ste)
     labels.append(f'z={z}')
 
-title = f'D={D}, d=4, T={T}, S={S}, batch size={bs}'
+title = f'D={D}, d=3, T={T}, S={S}, batch size={bs}'
+
 
 #%% Plotting the results
 #   Plotting the results
@@ -314,6 +352,8 @@ plt.ylabel('Mean Squared Error')
 plt.title(title)
 plt.grid(True)
 plt.legend()
+#plt.ylim(0,3)
+
 
 # Plot STE
 plt.subplot(1, 2, 2)
@@ -324,10 +364,44 @@ plt.ylabel('Standard Error')
 plt.title(title)
 plt.grid(True)
 plt.legend()
+#plt.ylim(0,3)
 
 plt.tight_layout()
 plt.show()
 
+
+#%% Plotting the results with expected MSE
+#   Plotting the results with expected MSE
+
+def plot_results_with_expected_mse(mse_results, ste_results, expected_mses, labels, title):
+    # Plot MSE
+    plt.figure(figsize=(10, 5))
+    plt.subplot(1, 2, 1)
+    for i, mse in enumerate(mse_results):
+        line, = plt.plot(mse.cpu(), label=labels[i], marker='o')
+        plt.plot(expected_mses[i], linestyle='--', color=line.get_color(), marker='x')
+    plt.xlabel('Layer')
+    plt.ylabel('Mean Squared Error')
+    plt.title(title)
+    plt.grid(True)
+    plt.legend()
+    plt.ylim(0,min(3,plt.ylim()[1]))
+
+
+    # Plot STE
+    plt.subplot(1, 2, 2)
+    for i, ste in enumerate(ste_results):
+        line, = plt.plot(ste.cpu(), label=labels[i], marker='o')
+        plt.plot([foo**0.5 for foo in expected_mses[i]], linestyle='--', color=line.get_color(), marker='x')
+    plt.xlabel('Layer')
+    plt.ylabel('Standard Error')
+    plt.title(title)
+    plt.grid(True)
+    plt.legend()
+    plt.ylim(0,min(3,plt.ylim()[1]))
+
+    plt.tight_layout()
+    plt.show()
 
 #%%
 ######################################################################################
