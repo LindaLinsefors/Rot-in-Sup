@@ -184,19 +184,24 @@ class RotInSupNetwork_4d:
         
 
         #Running the large network: All other layers
+        if not ideal:
+            for l in range(2,L):
+                if l%2 == 1: # Odd layers
+                    A[l] = torch.relu(torch.einsum('ij,bj->bi', W1, A[l-1]) + B[None,:])
+                else: # Even layers
+                    A[l] = torch.relu(torch.einsum('ij,bj->bi', W2, A[l-1]) + B[None,:])
+
+
         if ideal:
             mask_1 = torch.einsum('bti->bi', assignments_1[active_circuits]).clamp(max=1.0)
             mask_2 = torch.einsum('bti->bi', assignments_2[active_circuits]).clamp(max=1.0)
-
-        for l in range(2,L):
-            if l%2 == 1: # Odd layers
-                A[l] = torch.relu(torch.einsum('ij,bj->bi', W1, A[l-1]) + B[None,:])
-                if ideal:
+            for l in range(2,L):
+                if l%2 == 1: # Odd layers
+                    A[l] = torch.einsum('ij,bj->bi', W1, A[l-1]) + B[None,:]
                     A[l,:,2*Dod:3*Dod] *= mask_1
                     A[l,:,3*Dod:] *= mask_1
-            else: # Even layers
-                A[l] = torch.relu(torch.einsum('ij,bj->bi', W2, A[l-1]) + B[None,:])
-                if ideal:
+                else: # Even layers
+                    A[l] = torch.einsum('ij,bj->bi', W2, A[l-1]) + B[None,:]   
                     A[l,:,2*Dod:3*Dod] *= mask_2
                     A[l,:,3*Dod:] *= mask_2
 
@@ -414,4 +419,16 @@ def expected_mse_4d(T, Dod, L, z, naive=True):
         else :
             esor = 1/Dod
 
-        return T * esor**2 * (semi_correlated(L-1) + (z-1)*(L-1)) + (z-1)*esor*semi_correlated(L)
+        return T * esor**2 * ((L-1)**2 + (z-1)*semi_correlated(L-1)) + esor * (z-1)*semi_correlated(L)
+
+def expected_mse_3d(T, Dod, L, z, naive=True):
+    if L == 0:
+        return 0
+    else:
+        if naive == False:
+            esor = expected_squared_overlap_error(T, Dod, S, naive=False)
+        else :
+            esor = 1/Dod
+
+
+        return T * esor**2 * (8+1+1+2) * z * (L-1) + esor * (z-1) * (L + (L-1) * (8+1+1+2))

@@ -10,14 +10,15 @@ import numpy as np
 import matplotlib.pyplot as plt
 import torch
 import tqdm
+import pandas as pd
 
 #Make sure networks.py and assignments.py are reloaded
 import importlib, networks, assignments
 importlib.reload(networks)
 importlib.reload(assignments)
 
-from networks import RotInSupNetwork_4d, RotInSupNetwork_3d, expected_mse_4d
-from assignments import (maxT, 
+from networks import RotInSupNetwork_4d, RotInSupNetwork_3d, expected_mse_4d, expected_mse_3d
+from assignments import (maxT, MaxT,
                          expected_overlap_error, 
                          expected_squared_overlap_error, 
                          propability_of_overlap)
@@ -276,12 +277,12 @@ title = f'D={D}, T={T}, S={S}, z={z}, batch size={bs}, \nd=3, L_W=L'
 
 
 
-#%% Compare values for d=4
-#   Compare values for d=4
+#%% Compare z values for d=4
+#   Compare z values for d=4
 
 D=1200
 S=3
-T=1000
+T=5000
 L=5
 bs=1000
 
@@ -295,9 +296,10 @@ expected_mses = []
 
 for z in tqdm.tqdm(zs):
     test_net = RotInSupNetwork_4d(D/4,T,S,device=device)
-    test_run = test_net.run(L,z,bs,ideal=True)
+    test_run = test_net.run(L,z,bs)
     e = test_run.x - test_run.est_x
     mse = (e ** 2).mean((1,2)).sum((-1,))
+    #mse = ((e ** 2).sum((-1,))**0.5).mean((1,2))
     ste = mse**0.5
     mse_results.append(mse)
     ste_results.append(ste)
@@ -308,14 +310,47 @@ title = f'D={D}, d=4, T={T}, S={S}, batch size={bs}'
 
 plot_results_with_expected_mse(mse_results, ste_results, expected_mses, labels, title)
 
+#%% Compare T values for d=4
+#   Compare T values for d=4
+
+D=1200
+S=3
+z=2
+L=5
+bs=1000
+
+Ts = [1000, 2000, 3000, 4000, 5000]
+
+# Create lists to store results for plotting
+mse_results = []
+ste_results = []
+labels = []
+expected_mses = []
+
+for T in tqdm.tqdm(Ts):
+    test_net = RotInSupNetwork_4d(D/4,T,S,device=device)
+    test_run = test_net.run(L,z,bs,ideal=True)
+    e = test_run.x - test_run.est_x
+    mse = (e ** 2).mean((1,2)).sum((-1,))
+    #mse = ((e ** 2).sum((-1,))**0.5).mean((1,2))
+    ste = mse**0.5
+    mse_results.append(mse)
+    ste_results.append(ste)
+    labels.append(f'T={T}')
+    expected_mses.append([expected_mse_4d(T, D/4, L, z, naive=False) for L in range(L)])
+
+title = f'D={D}, d=4, z={z}, S={S}, batch size={bs}'
+
+plot_results_with_expected_mse(mse_results, ste_results, expected_mses, labels, title)
+
 
 #%% Compare z values for d=3
 #   Compare z values for d=3
 
 D=1200
 S=3
-T=1000
-L=20
+T=2000
+L=4
 bs=1000
 
 zs = [1, 2, 3, 4, 5]
@@ -324,10 +359,10 @@ zs = [1, 2, 3, 4, 5]
 mse_results = []
 ste_results = []
 labels = []
-
+expected_mses = []
 
 for z in tqdm.tqdm(zs):
-    test_net = RotInSupNetwork_3d(D/3,T,S,2,device=device)
+    test_net = RotInSupNetwork_3d(D/3,T,S,L,device=device)
     test_run = test_net.run(L,z,bs)
     e = test_run.x - test_run.est_x
     mse = (e ** 2).mean((1,2)).sum((-1,))
@@ -335,9 +370,12 @@ for z in tqdm.tqdm(zs):
     mse_results.append(mse)
     ste_results.append(ste)
     labels.append(f'z={z}')
+    expected_mses.append([expected_mse_3d(T, D/3, L, z, naive=False) for L in range(L)])
+
 
 title = f'D={D}, d=3, T={T}, S={S}, batch size={bs}'
 
+plot_results_with_expected_mse(mse_results, ste_results, expected_mses, labels, title)
 
 #%% Plotting the results
 #   Plotting the results
@@ -708,4 +746,111 @@ y_min, y_max = plt.ylim()
 plt.yticks(range(int(y_max)))
 plt.grid(True)
 plt.show()
+# %%
+
+
+
+
+# Ds = [1200] 
+
+# Ts = [1000, 1100, 1200, 1300, 1400, 1500, 1600, 1700, 1800, 1900, 
+#       2000, 2100, 2200, 2300, 2400, 2500, 2600, 2700, 2800, 2900, 
+#       3000, 3100, 3200, 3300, 3400, 3500, 3600, 3700, 3800, 3900, 
+#       4000, 4100, 4200, 4300, 4400, 4500, 4600, 4700, 4800, 4900,
+#       5000]
+
+
+Ds = [800, 900, 1000, 1100, 1200, 1300, 1400, 1500, 1600, 1700, 1800, 1900, 2000, 
+      2100, 2200, 2300, 2400, 2500, 2600, 2700, 2800, 2900, 3000]
+Ts = [2000]
+
+Ss = [3]
+L = 5
+bs = 1000
+zs = [1, 2, 3, 4, 5]
+
+
+mse_df = None
+settings_df = None
+
+
+for D in tqdm.tqdm(Ds):
+    for T in Ts :
+        for S in Ss:
+            for z in zs:
+            
+                try:
+                    test_net = RotInSupNetwork_4d(D/4,T,S,device=device)
+                except MaxT:
+                    continue
+
+                test_run = test_net.run(L,z,bs,ideal=True)
+                e = test_run.x - test_run.est_x
+                mse = (e ** 2).mean((1,2)).sum((-1,))
+
+                temp_mse_db = pd.DataFrame({
+                    'Layer': range(0,L),
+                    'MSE': mse.cpu().numpy(),
+                    'z': z,
+                    'D': D,
+                    'S': S,
+                    'T': T})
+                
+                temp_settings_db = pd.DataFrame({
+                    'D': D,
+                    'S': S,
+                    'T': T,
+                    'z': z,}, index=[0])
+
+                settings_df = pd.concat([settings_df, temp_settings_db], ignore_index=True)
+
+                mse_df = pd.concat([mse_df, temp_mse_db], ignore_index=True)
+
+
+
+# %%
+settings_other_than_T = settings_df.drop(columns=['T'])
+settings_other_than_T = settings_other_than_T.drop_duplicates(ignore_index=True)
+
+
+for setting in settings_other_than_T.itertuples():
+
+    matching_rows = mse_df[
+        (mse_df['D'] == setting.D) & 
+        (mse_df['S'] == setting.S) & 
+        (mse_df['z'] == setting.z)]
+
+    if len(matching_rows) <= 2*L:
+        continue
+
+    for l in range(L):
+        layer_db = matching_rows[matching_rows['Layer'] == l]
+        plt.plot(layer_db['T'], layer_db['MSE'],  label=f'Layer {l}', marker='o')
+    plt.xlabel('T')
+    plt.ylabel('MSE')
+    plt.title(f'D={setting.D}, S={setting.S}, z={setting.z}')
+    plt.legend()
+    plt.show()
+# %%
+settings_other_than_D = settings_df.drop(columns=['D'])
+settings_other_than_D = settings_other_than_D.drop_duplicates(ignore_index=True)
+
+for setting in settings_other_than_D.itertuples():
+
+    matching_rows = mse_df[
+        (mse_df['T'] == setting.T) & 
+        (mse_df['S'] == setting.S) & 
+        (mse_df['z'] == setting.z)]
+
+    if len(matching_rows) <= 2*L:
+        continue
+
+    for l in range(L):
+        layer_db = matching_rows[matching_rows['Layer'] == l]
+        plt.plot([(4/D)**2 for D in layer_db['D']], layer_db['MSE'],  label=f'Layer {l}', marker='o')
+    plt.xlabel('(d/D)^2')
+    plt.ylabel('MSE')
+    plt.title(f'T={setting.T}, S={setting.S}, z={setting.z}')
+    plt.legend()
+    plt.show()
 # %%
