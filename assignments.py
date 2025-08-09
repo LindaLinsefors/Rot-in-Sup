@@ -201,10 +201,15 @@ def expected_overlap_error(T, Dod, S, naive=False):
     else:
         return (T * S/Dod - 1) / (T - 1)
     
-def propability_of_overlap(T, Dod, S, naive=False): 
+def probability_of_overlap(T, Dod, S, naive=False): 
     return expected_overlap_error(T, Dod, S, naive=naive) * S
 
 def expected_squared_overlap_error(T, Dod, S, naive=False):
     return expected_overlap_error(T, Dod, S, naive=naive) / S
 
 
+def frequency_of_overlap(T, Dod, S):
+    assignments, _ = comp_in_sup_assignment(T, Dod, S)
+    overlap = (assignments.to(torch.float)) @ (assignments.to(torch.float).T) - S * torch.eye(T)    
+    overlap = overlap[overlap > 0.5]
+    return overlap.numel() / (T * (T - 1))
