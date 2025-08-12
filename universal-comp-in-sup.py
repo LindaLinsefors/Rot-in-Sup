@@ -133,6 +133,8 @@ class CompInSup:
         else:
             capped_embed = torch.einsum('tn,tm->nm',embed[l],embed[l-1])
             capped_embed.clamp_(max=1.0)
+            ces = capped_embed.sum()
+            capped_embed -= (torch.ones_like(capped_embed) - capped_embed) * ces/(Dod**2-ces)
 
             mean_w = w.mean(dim=0)
             diff_w = w - mean_w[None,:,:]
@@ -269,7 +271,7 @@ else:
     print("CompInSup test passed: The output matches the expected result.")
 
 
-#%% Plot MSE
+#%% Plot MSE #######################################################################################
 #   Plot MSE
 
 D = 1200
@@ -278,7 +280,7 @@ T = 1000
 S = 5
 z = 3
 bs = 800
-L = 4
+L = 2
 Dod = D // 3
 b = 1
 S = 5
