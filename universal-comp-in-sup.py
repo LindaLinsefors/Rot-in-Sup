@@ -126,22 +126,25 @@ class CompInSup:
         if not capped:
             for l in range(1,L):
                 [[W[l,:Dod,     :Dod], W[l,:Dod,     Dod:2*Dod], W[l,:Dod,     2*Dod:]],
-                [W[l,Dod:2*Dod,:Dod], W[l,Dod:2*Dod,Dod:2*Dod], W[l,Dod:2*Dod,2*Dod:]],
-                [W[l,2*Dod:,   :Dod], W[l,2*Dod:,   Dod:2*Dod], W[l,2*Dod:,   2*Dod:]]
+                 [W[l,Dod:2*Dod,:Dod], W[l,Dod:2*Dod,Dod:2*Dod], W[l,Dod:2*Dod,2*Dod:]],
+                 [W[l,2*Dod:,   :Dod], W[l,2*Dod:,   Dod:2*Dod], W[l,2*Dod:,   2*Dod:]]
                 ]= torch.einsum('tn,tij,tm->ijnm', unemb[l], w, embed[l-1])
 
         else:
-            capped_embed = torch.einsum('tn,tm->nm',embed[l],embed[l-1])
-            capped_embed.clamp_(max=1.0)
-            ces = capped_embed.sum()
-            capped_embed -= (torch.ones_like(capped_embed) - capped_embed) * ces/(Dod**2-ces)
-
             mean_w = w.mean(dim=0)
             diff_w = w - mean_w[None,:,:]
+
             for l in range(1,L):
+
+                capped_embed = torch.einsum('tn,tm->nm',embed[l],embed[l-1])
+                capped_embed.clamp_(max=1.0)
+                ces = capped_embed.sum()
+                capped_embed -= (torch.ones_like(capped_embed) - capped_embed) * ces/(Dod**2-ces)
+                #print(f'mean ces {ces.mean()}')
+
                 [[W[l,:Dod,     :Dod], W[l,:Dod,     Dod:2*Dod], W[l,:Dod,     2*Dod:]],
-                [W[l,Dod:2*Dod,:Dod], W[l,Dod:2*Dod,Dod:2*Dod], W[l,Dod:2*Dod,2*Dod:]],
-                [W[l,2*Dod:,   :Dod], W[l,2*Dod:,   Dod:2*Dod], W[l,2*Dod:,   2*Dod:]]
+                 [W[l,Dod:2*Dod,:Dod], W[l,Dod:2*Dod,Dod:2*Dod], W[l,Dod:2*Dod,2*Dod:]],
+                 [W[l,2*Dod:,   :Dod], W[l,2*Dod:,   Dod:2*Dod], W[l,2*Dod:,   2*Dod:]]
                 ]= (torch.einsum('tn,tij,tm->ijnm', embed[l], diff_w, embed[l-1])
                     + torch.einsum('nm,ij->ijnm', capped_embed, mean_w)
                     )/S
@@ -280,7 +283,7 @@ T = 1000
 S = 5
 z = 3
 bs = 800
-L = 2
+L = 4
 Dod = D // 3
 b = 1
 S = 5
@@ -313,7 +316,8 @@ expected = []
 #for correction in [0, 0.0021, 0.0022, 0.0023, 0.0024, 0.0025, 0.0026, 0.0027, 0.0028]:
 
 for capped in [False, True]:
-    for z in [1, 2, 3]:
+    for z in [3, 2, 1]:
+
         circ = RotSmallCircuits(T, b, device=device)
         net = CompInSup(D, L, S, circ, correction=correction, capped=capped, device=device)
         run = net.run(L, z, bs)
@@ -339,7 +343,7 @@ T = 1000
 S = 5
 z = 3
 bs = 800
-L = 3
+L = 4
 Dod = D // 3
 b = 1
 
@@ -507,4 +511,49 @@ unemb_t = (embed[t] - 1/(S) * neighbour_neurons)/S
 
 
 
+# %%
+
+
+D = 1200
+T = 1000
+
+S = 5
+z = 3
+bs = 800
+L = 2
+Dod = D // 3
+b = 1
+S = 5
+z = 1
+
+f = frequency_of_overlap(T, Dod, S)
+p = probability_of_overlap(T, Dod, S)
+
+
+#correction = f/((S-f)*S)
+#correction = p/((S-p)*S)
+correction = 1/(Dod-S)
+
+
+runs = []
+labels = []
+nets = []
+
+capped = True
+expected = None
+
+circ = RotSmallCircuits(T, b, device=device)
+
+for L in [2,3]:
+    
+    net = CompInSup(D, L, S, circ, correction=correction, capped=capped, device=device)
+    run = net.run(L, z, bs)
+
+    nets.append(net)
+    runs.append(run)
+    labels.append(f'L={L}')
+
+title = ''
+
+plot_mse(labels, runs, title, expected)
 # %%
