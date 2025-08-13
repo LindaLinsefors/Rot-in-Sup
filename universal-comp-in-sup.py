@@ -38,20 +38,25 @@ class RotSmallCircuits:
         cos = torch.cos(theta)
         sin = torch.sin(theta)
         
-        self.w = torch.zeros(T, 3, 3, device=device)
+        self.mean_w = torch.zeros(3, 3, device=device)
+        self.diff_w = torch.zeros(T, 3, 3, device=device)
 
-        self.w[:,0,0] = 1 + b
-        self.w[:,1,0] = 1 + b - cos + sin
-        self.w[:,2,0] = 1 + b - cos - sin
+        self.mean_w[0,0] = 1 + b
+        self.mean_w[1,0] = 1 + b
+        self.mean_w[2,0] = 1 + b
 
-        self.w[:,1,1] = cos
-        self.w[:,1,2] = -sin
-        self.w[:,2,1] = sin
-        self.w[:,2,2] = cos
+        self.diff_w[:,1,0] = - cos + sin
+        self.diff_w[:,2,0] = - cos - sin
+        self.diff_w[:,1,1] = cos
+        self.diff_w[:,1,2] = -sin
+        self.diff_w[:,2,1] = sin
+        self.diff_w[:,2,2] = cos
+
+        self.w = self.mean_w[None,:,:] + self.diff_w
 
         self.b = - torch.ones(3, device=device) * b
 
-    def run(self, L, z, bs, active_circuits=None):
+    def run(self, L, z, bs, active_circuits=None, initial_angle=None):
         """Run all small circuits on input random inputs"""
 
         device = self.device
@@ -71,7 +76,9 @@ class RotSmallCircuits:
                                                  device=device).reshape(n, z) % self.T
 
         #Initial values
-        initial_angle = torch.rand(bs, z, device=device) * 2 * np.pi
+        if initial_angle is None:
+            initial_angle = torch.rand(bs, z, device=device) * 2 * np.pi
+
         a[0, :, :, 0] = 1
         a[0, :, :, 1] = torch.cos(initial_angle) + 1
         a[0, :, :, 2] = torch.sin(initial_angle) + 1
@@ -96,6 +103,9 @@ class CompInSup:
         D = int(D)
         Dod = int(D/d)
         w = small_circuits.w
+
+        mean_w = small_circuits.mean_w
+        diff_w = small_circuits.diff_w
 
         self.T = T # Number of small circuits
         self.D = D # Number of neurons in the large network
@@ -123,23 +133,48 @@ class CompInSup:
         W = torch.zeros(L, D, D, device=device)
         W[0] = torch.eye(D, device=device)
 
-        if not capped:
+        # if not capped and not split:
+        if True:
             for l in range(1,L):
                 [[W[l,:Dod,     :Dod], W[l,:Dod,     Dod:2*Dod], W[l,:Dod,     2*Dod:]],
                  [W[l,Dod:2*Dod,:Dod], W[l,Dod:2*Dod,Dod:2*Dod], W[l,Dod:2*Dod,2*Dod:]],
                  [W[l,2*Dod:,   :Dod], W[l,2*Dod:,   Dod:2*Dod], W[l,2*Dod:,   2*Dod:]]
                 ]= torch.einsum('tn,tij,tm->ijnm', unemb[l], w, embed[l-1])
 
-        else:
-            mean_w = w.mean(dim=0)
-            diff_w = w - mean_w[None,:,:]
+            W1 = W.clone()
 
+
+        # if not capped and split:
+        if True:
+            for l in range(1,L):
+                [[W[l,:Dod,     :Dod], W[l,:Dod,     Dod:2*Dod], W[l,:Dod,     2*Dod:]],
+                 [W[l,Dod:2*Dod,:Dod], W[l,Dod:2*Dod,Dod:2*Dod], W[l,Dod:2*Dod,2*Dod:]],
+                 [W[l,2*Dod:,   :Dod], W[l,2*Dod:,   Dod:2*Dod], W[l,2*Dod:,   2*Dod:]]
+                ]= (torch.einsum('tn,ij,tm->ijnm', unemb[l], mean_w, embed[l-1])
+                    +torch.einsum('tn,tij,tm->ijnm', embed[l]/S, diff_w, embed[l-1]))
+                
+            W2 = W.clone()
+
+        #else:
+        if True:
+            # mean_w = w.mean(dim=0)
+            # diff_w = w - mean_w[None,:,:]
+        
             for l in range(1,L):
 
                 capped_embed = torch.einsum('tn,tm->nm',embed[l],embed[l-1])
                 capped_embed.clamp_(max=1.0)
+
+
+                above_diag = torch.triu(torch.ones(T, T), diagonal=1).bool()
+                every_unwanted_interaction = torch.einsum('tn,nm,um->tu', embed[l], capped_embed, embed[l-1])[above_diag].sum()
+                every_possible_interaction = T*(T-1)/2 * S*S
+                capped_corr_1 = every_unwanted_interaction/(every_possible_interaction-every_unwanted_interaction)
+
                 ces = capped_embed.sum()
-                capped_embed -= (torch.ones_like(capped_embed) - capped_embed) * ces/(Dod**2-ces)
+                capped_corr_2 = ces/(Dod**2-ces)
+
+                capped_embed -= (torch.ones_like(capped_embed) - capped_embed) * capped_corr_1
                 #print(f'mean ces {ces.mean()}')
 
                 [[W[l,:Dod,     :Dod], W[l,:Dod,     Dod:2*Dod], W[l,:Dod,     2*Dod:]],
@@ -149,6 +184,7 @@ class CompInSup:
                     + torch.einsum('nm,ij->ijnm', capped_embed, mean_w)
                     )/S
                     
+            W3 = W.clone()
 
         #First bias is zero, the rest are the biases of the small circuits
         B = torch.zeros(L, D, device=device)
@@ -162,10 +198,24 @@ class CompInSup:
         self.unemb = unemb
         self.assign = assign
 
-    def run(self, L, z, bs, active_circuits=None):
+        self.capped = capped
+        self.split = split
+        self.W1 = W1
+        self.W2 = W2
+        self.W3 = W3
+
+    def run(self, L, z, bs, active_circuits=None, initial_angle=None, 
+            capped=False, split=False):
         device = self.device
 
-        a, active_circuits = self.small_circuits.run(L, z, bs, active_circuits)
+        if not capped and not split:
+            W = self.W1
+        elif not capped and split:
+            W = self.W2
+        else:
+            W = self.W3
+
+        a, active_circuits = self.small_circuits.run(L, z, bs, active_circuits, initial_angle)
         x = a[:,:,:,1:] - 1
 
         Dod = self.D // 3
@@ -177,8 +227,9 @@ class CompInSup:
         pre_A[0] = A[0]
 
         for l in range(L):
-            pre_A[l+1] = torch.einsum('nm,bm->bn', self.W[l], A[l]) + self.B[l]
+            pre_A[l+1] = torch.einsum('nm,bm->bn', W[l], A[l]) + self.B[l]
             A[l+1] = torch.relu(pre_A[l+1])
+            #A[l+1] = pre_A[l+1]
 
         est_a = torch.zeros(L+1, bs, z, 3, device=device)
         est_a[0] = a[0]
@@ -283,7 +334,7 @@ T = 1000
 S = 5
 z = 3
 bs = 800
-L = 4
+L = 5
 Dod = D // 3
 b = 1
 S = 5
@@ -315,17 +366,36 @@ expected = []
 
 #for correction in [0, 0.0021, 0.0022, 0.0023, 0.0024, 0.0025, 0.0026, 0.0027, 0.0028]:
 
-for capped in [False, True]:
-    for z in [3, 2, 1]:
 
-        circ = RotSmallCircuits(T, b, device=device)
+
+circ = RotSmallCircuits(T, b, device=device)
+net = CompInSup(D, L, S, circ, correction=correction, capped=False, device=device)
+#initial_angle = torch.rand(bs, z, device=device) * 2 * np.pi
+#active_circuits = torch.randint(T, (bs, z), device=device)
+
+for z in [1, 2, 3]:
+    
+    for split, capped in [(False, False), (True, False), (True, True)]:
+    #for z in [3, 2, 1]:
+
+        if (split, capped) == (False, False):
+            labels.append(f'z={z}')
+        if (split, capped) == (True, False):
+            labels.append(f'z={z}, split')
+        if (split, capped) == (True, True):
+            labels.append(f'z={z}, capped')
+
         net = CompInSup(D, L, S, circ, correction=correction, capped=capped, device=device)
-        run = net.run(L, z, bs)
+
+        run = net.run(L, z, bs, 
+                      #active_circuits=active_circuits, 
+                      #initial_angle=initial_angle,
+                      capped=capped, split=split)
 
         runs.append(run)
         #labels.append(f'corr type={correction_type}')
         #labels.append(f'b={b}, S={S}')
-        labels.append(f'z={z}, capped={capped}')
+        #labels.append(f'z={z}, split={split}')
         #labels.append(f'corr={correction}')
 
         expected.append([expected_mse(T,Dod,l,b) for l in range(L+1)]) 
@@ -337,15 +407,38 @@ title = f'D={D}, D/d = {Dod}, T={T}, L={L}, bs={bs}, S={S}, b={b}'
 plot_mse(labels, runs, title, expected)
 
 #%%
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#%%
 D = 1200
 T = 1000
 
 S = 5
 z = 3
 bs = 800
-L = 4
+L = 5
 Dod = D // 3
-b = 1
+b = 0.5
 
 correction = 1/(Dod-S)
 
@@ -556,4 +649,164 @@ for L in [2,3]:
 title = ''
 
 plot_mse(labels, runs, title, expected)
+# %%
+
+
+L=2
+correction = 1/(Dod-S)
+
+embed = torch.zeros(L, T, Dod, device=device)
+unemb = torch.zeros(L, T, Dod, device=device)
+assign = torch.zeros(L, T, S, device=device, dtype=torch.int64)
+
+embed[0], assign[0] = comp_in_sup_assignment(T, Dod, S, device)
+for l in range(1, L):
+    shuffle = torch.randperm(T, device=device)
+    embed[l] = embed[0][shuffle]
+    assign[l] = assign[0][shuffle]
+
+if correction is None:
+    p = probability_of_overlap(T, Dod, S)
+    correction = p/((S-p)*S)
+unemb = - torch.ones(L, T, Dod, device=device) * correction
+unemb += embed * (1/S + correction)
+
+l=1
+
+capped_embed = torch.einsum('tn,tm->nm',embed[l],embed[l-1])
+capped_embed.clamp_(max=1.0)
+
+above_diag = torch.triu(torch.ones(T, T), diagonal=1).bool()
+every_unwanted_interaction = torch.einsum('tn,nm,um->tu', embed[l], capped_embed, embed[l-1])[above_diag].sum()
+every_possible_interaction = T*(T-1)/2 * S*S
+capped_corr_1 = every_unwanted_interaction/(every_possible_interaction-every_unwanted_interaction)
+
+ces = capped_embed.sum()
+capped_corr_2 = ces/(Dod**2-ces)
+
+capped_embed -= (torch.ones_like(capped_embed) - capped_embed) * capped_corr_1
+
+capped_re_embed = capped_embed/S
+
+normal_re_embed = torch.einsum('tn,tm->nm',unemb[l],embed[l-1])
+
+
+
+capped_outcome = torch.einsum('tn,nm,um', embed[l]/S, capped_re_embed, embed[l-1])
+normal_outcome = torch.einsum('tn,nm,um', unemb[l], normal_re_embed, embed[l-1])
+
+capped_noise = capped_outcome[above_diag]
+normal_noise = normal_outcome[above_diag]
+
+plt.hist(capped_noise, bins=30, alpha=0.5, label='Capped Noise, mean={:.5f}'.format(capped_noise.mean()), density=True)
+plt.hist(normal_noise, bins=30, alpha=0.5, label='Normal Noise, mean={:.5f}'.format(normal_noise.mean()), density=True)
+plt.legend()
+plt.show()
+
+
+
+
+# %%
+plt.hist(capped_noise[capped_noise > 0.5], bins=30, alpha=0.5, label='Capped Noise')
+plt.hist(normal_noise[normal_noise > 0.5], bins=30, alpha=0.5, label='Normal Noise')
+plt.legend()
+plt.show()
+
+# %%
+
+
+
+D = 1200
+T = 1000
+
+S = 5
+z = 2
+bs = 200//z
+L = 6
+Dod = D // 3
+b = 0.0
+
+circ = RotSmallCircuits(T, b, device=device)
+net = CompInSup(D, L, S, circ, capped=True, device=device)
+run = net.run(L, z, bs, capped=True)
+
+est_a = run.est_a
+est_a.shape
+
+for i in range(z):
+    for j in range(bs):
+        plt.plot(est_a[:,j,i,0], alpha=0.1, color='red')
+
+plt.grid(True)
+plt.xlabel('Active Circuits On-Indicator')
+plt.ylabel('Layer')
+plt.title(f'D={D}, D/d = {Dod}, T={T}, L={L}, z={z}, bs={bs}, S={S}, b={b}')
+#plt.show()
+
+
+
+net = CompInSup(D, L, S, circ, capped=False, device=device)
+run = net.run(L, z, bs, capped=False)
+
+est_a = run.est_a
+est_a.shape
+
+for i in range(z):
+    for j in range(bs):
+        #plt.plot(est_a[:,j,i,0], alpha=0.1, color='blue')
+        pass
+
+plt.grid(True)
+
+plt.show()
+# %%
+
+
+
+
+
+
+
+
+L = 2
+
+w = circ.w
+mean_w = circ.mean_w
+diff_w = w - mean_w
+
+embed = torch.zeros(L, T, Dod, device=device)
+unemb = torch.zeros(L, T, Dod, device=device)
+assign = torch.zeros(L, T, S, device=device, dtype=torch.int64)
+
+embed[0], assign[0] = comp_in_sup_assignment(T, Dod, S, device)
+for l in range(1, L):
+    shuffle = torch.randperm(T, device=device)
+    embed[l] = embed[0][shuffle]
+    assign[l] = assign[0][shuffle]
+
+if correction is None:
+    p = probability_of_overlap(T, Dod, S)
+    correction = p/((S-p)*S)
+unemb = - torch.ones(L, T, Dod, device=device) * correction
+unemb += embed * (1/S + correction)
+
+W = torch.zeros(L, D, D, device=device)
+W[0] = torch.eye(D, device=device)
+
+for l in range(1,L):
+    [[W[l,:Dod,     :Dod], W[l,:Dod,     Dod:2*Dod], W[l,:Dod,     2*Dod:]],
+        [W[l,Dod:2*Dod,:Dod], W[l,Dod:2*Dod,Dod:2*Dod], W[l,Dod:2*Dod,2*Dod:]],
+        [W[l,2*Dod:,   :Dod], W[l,2*Dod:,   Dod:2*Dod], W[l,2*Dod:,   2*Dod:]]
+    ]= torch.einsum('tn,tij,tm->ijnm', unemb[l], w, embed[l-1])
+
+W_no_split = W.clone()
+
+for l in range(1,L):
+    [[W[l,:Dod,     :Dod], W[l,:Dod,     Dod:2*Dod], W[l,:Dod,     2*Dod:]],
+        [W[l,Dod:2*Dod,:Dod], W[l,Dod:2*Dod,Dod:2*Dod], W[l,Dod:2*Dod,2*Dod:]],
+        [W[l,2*Dod:,   :Dod], W[l,2*Dod:,   Dod:2*Dod], W[l,2*Dod:,   2*Dod:]]
+    ]= (torch.einsum('tn,ij,tm->ijnm', unemb[l], mean_w, embed[l-1])
+        +torch.einsum('tn,tij,tm->ijnm', embed[l]/S, diff_w, embed[l-1]))
+    
+
 # %%

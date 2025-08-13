@@ -1,6 +1,9 @@
 #%% Customizing the __repr__ method of torch.Tensor to save images 
 #   Customizing the __repr__ method of torch.Tensor to save images
 
+import torch
+import matplotlib.pyplot as plt
+
 try:
     original_repr 
 except:
@@ -9,12 +12,15 @@ except:
 def custom_repr(self):
     with torch.no_grad():
         if self.dim() == 2 and self.dtype == torch.float:
-            image_data = self.cpu().numpy()
-            filename = f"tensor_image_{list(self.shape)}.png"
-            plt.imshow(image_data, cmap='gray', aspect='equal')
-            plt.axis('off')
-            plt.savefig(filename, bbox_inches='tight', pad_inches=0)
-            plt.close()
+            try:
+                image_data = self.cpu().numpy()
+                filename = f"tensor_image_{list(self.shape)}.png"
+                plt.imshow(image_data, cmap='gray', aspect='equal')
+                plt.axis('off')
+                plt.savefig(filename, bbox_inches='tight', pad_inches=0)
+                plt.close()
+            except:
+                pass
         try:
             mean = self.mean().item()
         except:
