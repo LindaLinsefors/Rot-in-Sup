@@ -1,5 +1,6 @@
 #%%
 
+from code import interact
 import numpy as np
 import matplotlib.pyplot as plt
 import torch
@@ -28,18 +29,17 @@ class RunData:
    pass
 
 class RotSmallCircuits:
-    def __init__(self, T, b, device=device):
+    def __init__(self, T, b):
         self.T = T # Number of small circuits
         self.d = 3 # Number of neurons per small circuit
-        self.device = device
         
         #Small circuit rotations
-        theta = torch.rand(T,device=device) * 2 * np.pi
+        theta = torch.rand(T) * 2 * np.pi
         cos = torch.cos(theta)
         sin = torch.sin(theta)
-        
-        self.mean_w = torch.zeros(3, 3, device=device)
-        self.diff_w = torch.zeros(T, 3, 3, device=device)
+
+        self.mean_w = torch.zeros(3, 3)
+        self.diff_w = torch.zeros(T, 3, 3)
 
         self.mean_w[0,0] = 1 + b
         self.mean_w[1,0] = 1 + b
@@ -53,31 +53,30 @@ class RotSmallCircuits:
         self.diff_w[:,2,2] = cos
 
         self.w = self.mean_w[None,:,:] + self.diff_w
+        self.r = self.w[:, 1:, 1:]
 
-        self.b = - torch.ones(3, device=device) * b
+        self.b = - torch.ones(3) * b
 
     def run(self, L, z, bs, active_circuits=None, initial_angle=None):
         """Run all small circuits on input random inputs"""
 
-        device = self.device
-        a = torch.zeros(L+1, bs, z, 3, device=device)
+        a = torch.zeros(L+1, bs, z, 3)
 
         #Active circuits
         if active_circuits is None:  # Generating random circuits
-            active_circuits = torch.randint(self.T, (bs, z), device=device)
+            active_circuits = torch.randint(self.T, (bs, z))
 
             # Replace any duplicates with non-duplicates
-            same = torch.zeros(bs, dtype=torch.bool, device=device)
+            same = torch.zeros(bs, dtype=torch.bool)
             for i in range(z):
                 for j in range(i):
                     same += (active_circuits[:,i] == active_circuits[:,j])
             n = same.sum()
-            active_circuits[same] = torch.tensor(range(z*n), dtype=torch.int64, 
-                                                 device=device).reshape(n, z) % self.T
+            active_circuits[same] = torch.tensor(range(z*n), dtype=torch.int64).reshape(n, z) % self.T
 
         #Initial values
         if initial_angle is None:
-            initial_angle = torch.rand(bs, z, device=device) * 2 * np.pi
+            initial_angle = torch.rand(bs, z) * 2 * np.pi
 
         a[0, :, :, 0] = 1
         a[0, :, :, 1] = torch.cos(initial_angle) + 1
@@ -199,7 +198,6 @@ class CompInSup:
         self.assign = assign
 
         self.capped = capped
-        self.split = split
         self.W1 = W1
         self.W2 = W2
         self.W3 = W3
@@ -262,7 +260,7 @@ def expected_mse(T, Dod, l, b):
     
     
 
-def plot_mse(labels, runs, title, expected=None):
+def plot_mse(labels, runs, title, expected=None, y_max=None):
     """Plot the mean squared error for a set of runs."""
     
     mse_x = []
@@ -284,6 +282,8 @@ def plot_mse(labels, runs, title, expected=None):
     plt.xlabel('Layer')
     plt.ylabel('Mean Squared Error')
     plt.grid(True)
+    if y_max is not None:
+        plt.ylim(0, y_max) 
     plt.legend()
 
     plt.subplot(1, 2, 2)
@@ -303,6 +303,9 @@ def plot_mse(labels, runs, title, expected=None):
     plt.subplots_adjust(top=0.88)  # Make room for the title
 
     plt.show()
+    
+
+
 
 # %% Very small test
 #    Very small test
@@ -328,83 +331,85 @@ else:
 #%% Plot MSE #######################################################################################
 #   Plot MSE
 
-D = 1200
-T = 1000
+def f(b):
+    D = 1200
+    T = 1000
 
-S = 5
-z = 3
-bs = 800
-L = 5
-Dod = D // 3
-b = 1
-S = 5
-z = 1
+    S = 3
+    z = 3
+    bs = 800
+    L = 3
+    Dod = D // 3
+    S = 5
+    z = 1
 
-f = frequency_of_overlap(T, Dod, S)
-p = probability_of_overlap(T, Dod, S)
-
-
-#correction = f/((S-f)*S)
-#correction = p/((S-p)*S)
-correction = 1/(Dod-S)
+    f = frequency_of_overlap(T, Dod, S)
+    p = probability_of_overlap(T, Dod, S)
 
 
-runs = []
-labels = []
-expected = []
-
-# for correction_type in [ 'p', 'f', 'D']:
-#     if correction_type == 'p':
-#         correction = p/((S-p)*S)
-#     if correction_type == 'f':
-#         correction = f/((S-f)*S)
-#     if correction_type == 'D':
-#         correction = 1/(Dod-S)
-
-# for b in [0.3, 0.4, 0.5]:
-#     for S in [3,4,5]:
-
-#for correction in [0, 0.0021, 0.0022, 0.0023, 0.0024, 0.0025, 0.0026, 0.0027, 0.0028]:
+    #correction = f/((S-f)*S)
+    #correction = p/((S-p)*S)
+    correction = 1/(Dod-S)
 
 
+    runs = []
+    labels = []
+    expected = []
 
-circ = RotSmallCircuits(T, b, device=device)
-net = CompInSup(D, L, S, circ, correction=correction, capped=False, device=device)
-#initial_angle = torch.rand(bs, z, device=device) * 2 * np.pi
-#active_circuits = torch.randint(T, (bs, z), device=device)
+    # for correction_type in [ 'p', 'f', 'D']:
+    #     if correction_type == 'p':
+    #         correction = p/((S-p)*S)
+    #     if correction_type == 'f':
+    #         correction = f/((S-f)*S)
+    #     if correction_type == 'D':
+    #         correction = 1/(Dod-S)
 
-for z in [1, 2, 3]:
-    
+    # for b in [0.3, 0.4, 0.5]:
+    #     for S in [3,4,5]:
+
+    #for correction in [0, 0.0021, 0.0022, 0.0023, 0.0024, 0.0025, 0.0026, 0.0027, 0.0028]:
+
+
+
+    circ = RotSmallCircuits(T, b, device=device)
+    net = CompInSup(D, L, S, circ, correction=correction, capped=False, device=device)
+    #initial_angle = torch.rand(bs, z, device=device) * 2 * np.pi
+    #active_circuits = torch.randint(T, (bs, z), device=device)
+
+    #for z in [1, 2, 3]:
+        
     for split, capped in [(False, False), (True, False), (True, True)]:
-    #for z in [3, 2, 1]:
+        for z in [3, 2, 1]:
 
-        if (split, capped) == (False, False):
-            labels.append(f'z={z}')
-        if (split, capped) == (True, False):
-            labels.append(f'z={z}, split')
-        if (split, capped) == (True, True):
-            labels.append(f'z={z}, capped')
+            if (split, capped) == (False, False):
+                labels.append(f'z={z}')
+            if (split, capped) == (True, False):
+                labels.append(f'z={z}, split')
+            if (split, capped) == (True, True):
+                labels.append(f'z={z}, capped')
 
-        net = CompInSup(D, L, S, circ, correction=correction, capped=capped, device=device)
+            net = CompInSup(D, L, S, circ, correction=correction, capped=capped, device=device)
 
-        run = net.run(L, z, bs, 
-                      #active_circuits=active_circuits, 
-                      #initial_angle=initial_angle,
-                      capped=capped, split=split)
+            run = net.run(L, z, bs, 
+                        #active_circuits=active_circuits, 
+                        #initial_angle=initial_angle,
+                        capped=capped, split=split)
 
-        runs.append(run)
-        #labels.append(f'corr type={correction_type}')
-        #labels.append(f'b={b}, S={S}')
-        #labels.append(f'z={z}, split={split}')
-        #labels.append(f'corr={correction}')
+            runs.append(run)
+            #labels.append(f'corr type={correction_type}')
+            #labels.append(f'b={b}, S={S}')
+            #labels.append(f'z={z}, split={split}')
+            #labels.append(f'corr={correction}')
 
-        expected.append([expected_mse(T,Dod,l,b) for l in range(L+1)]) 
+            expected.append([expected_mse(T,Dod,l,b) for l in range(L+1)]) 
 
-# title = f'D={D}, D/d = {Dod}, T={T}, L={L}, z={z}, bs={bs}, S={S}, b={b}'
-# title = f'D={D}, D/d = {Dod}, T={T}, L={L}, z={z}, bs={bs}, corr type = D'
-title = f'D={D}, D/d = {Dod}, T={T}, L={L}, bs={bs}, S={S}, b={b}'
+    # title = f'D={D}, D/d = {Dod}, T={T}, L={L}, z={z}, bs={bs}, S={S}, b={b}'
+    # title = f'D={D}, D/d = {Dod}, T={T}, L={L}, z={z}, bs={bs}, corr type = D'
+    title = f'D={D}, D/d = {Dod}, T={T}, L={L}, bs={bs}, S={S}, b={b}'
 
-plot_mse(labels, runs, title, expected)
+    plot_mse(labels, runs, title, expected, y_max=0.8)
+
+interact(f, b=[0, 0.2, 0.4, 0.6, 0.8])
 
 #%%
 

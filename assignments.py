@@ -213,3 +213,7 @@ def frequency_of_overlap(T, Dod, S):
     overlap = (assignments.to(torch.float)) @ (assignments.to(torch.float).T) - S * torch.eye(T)    
     overlap = overlap[overlap > 0.5]
     return overlap.numel() / (T * (T - 1))
+
+
+class Test():
+    pass
