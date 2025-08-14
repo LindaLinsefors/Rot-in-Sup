@@ -1,3 +1,5 @@
+#%% Reload classes_and_functions
+#   Reload classes_and_functions
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -52,6 +54,8 @@ class RotSmallCircuits:
 
         self.b = - torch.ones(3) * b
 
+        self.rot = True
+
     def run(self, L, z, bs, active_circuits=None, initial_angle=None):
         """Run all small circuits on input random inputs"""
 
@@ -88,11 +92,12 @@ class RotSmallCircuits:
 
 
 
-def expected_mse(T, Dod, l, b):
+def expected_mse(T, Dod, l, b, z):
     if l == 0:
         return (0,0)
     
     mse_on = l * (z-1)/Dod + (l-1)*(1+b) * z*T/Dod**2
-    mse_x = l * (z-1)/Dod + (l-1)*(1)  * z*T/Dod**2
+    mse_x =  l * (z-1)/Dod + (l-1)*(1+b) * z*T/Dod**2
 
     return (mse_on, mse_x)
+# %%
