@@ -5,12 +5,15 @@ import numpy as np
 import matplotlib.pyplot as plt
 import torch
 import tqdm
+
 device = 'cpu' 
+torch.set_default_device(device)
 
 #Make sure networks.py and assignments.py are reloaded
-import importlib, networks, assignments
+import importlib, networks, assignments, classes_and_functions
 importlib.reload(networks)
 importlib.reload(assignments)
+importlib.reload(classes_and_functions)
 
 from assignments import (maxT, MaxT,
                          comp_in_sup_assignment,
@@ -19,80 +22,18 @@ from assignments import (maxT, MaxT,
                          probability_of_overlap,
                          frequency_of_overlap)
 
+from classes_and_functions import RunData, RotSmallCircuits, expected_mse
+
 
 
 #%% Set up
 #   Set up
 
 
-class RunData:
-   pass
 
-class RotSmallCircuits:
-    def __init__(self, T, b):
-        self.T = T # Number of small circuits
-        self.d = 3 # Number of neurons per small circuit
-        
-        #Small circuit rotations
-        theta = torch.rand(T) * 2 * np.pi
-        cos = torch.cos(theta)
-        sin = torch.sin(theta)
-
-        self.mean_w = torch.zeros(3, 3)
-        self.diff_w = torch.zeros(T, 3, 3)
-
-        self.mean_w[0,0] = 1 + b
-        self.mean_w[1,0] = 1 + b
-        self.mean_w[2,0] = 1 + b
-
-        self.diff_w[:,1,0] = - cos + sin
-        self.diff_w[:,2,0] = - cos - sin
-        self.diff_w[:,1,1] = cos
-        self.diff_w[:,1,2] = -sin
-        self.diff_w[:,2,1] = sin
-        self.diff_w[:,2,2] = cos
-
-        self.w = self.mean_w[None,:,:] + self.diff_w
-        self.r = self.w[:, 1:, 1:]
-
-        self.b = - torch.ones(3) * b
-
-    def run(self, L, z, bs, active_circuits=None, initial_angle=None):
-        """Run all small circuits on input random inputs"""
-
-        a = torch.zeros(L+1, bs, z, 3)
-
-        #Active circuits
-        if active_circuits is None:  # Generating random circuits
-            active_circuits = torch.randint(self.T, (bs, z))
-
-            # Replace any duplicates with non-duplicates
-            same = torch.zeros(bs, dtype=torch.bool)
-            for i in range(z):
-                for j in range(i):
-                    same += (active_circuits[:,i] == active_circuits[:,j])
-            n = same.sum()
-            active_circuits[same] = torch.tensor(range(z*n), dtype=torch.int64).reshape(n, z) % self.T
-
-        #Initial values
-        if initial_angle is None:
-            initial_angle = torch.rand(bs, z) * 2 * np.pi
-
-        a[0, :, :, 0] = 1
-        a[0, :, :, 1] = torch.cos(initial_angle) + 1
-        a[0, :, :, 2] = torch.sin(initial_angle) + 1
-
-        #Running the small circuits
-        for l in range(L):
-            a[l+1] = torch.relu(
-                torch.einsum('btij,btj->bti', self.w[active_circuits], a[l]) 
-                + self.b)
-
-        return a, active_circuits
 
 class CompInSup:
-    def __init__(self, D, L, S, small_circuits, correction=None, capped=False, device=device):
-        self.device = device
+    def __init__(self, D, L, S, small_circuits, correction=None, capped=False):
 
         if capped:
             correction = 0
@@ -113,24 +54,24 @@ class CompInSup:
         self.small_circuits = small_circuits
         self.correction = correction # Neggative correction for unembedding
 
-        embed = torch.zeros(L, T, Dod, device=device)
-        unemb = torch.zeros(L, T, Dod, device=device)
-        assign = torch.zeros(L, T, S, device=device, dtype=torch.int64)
+        embed = torch.zeros(L, T, Dod)
+        unemb = torch.zeros(L, T, Dod)
+        assign = torch.zeros(L, T, S, dtype=torch.int64)
 
-        embed[0], assign[0] = comp_in_sup_assignment(T, Dod, S, device)
+        embed[0], assign[0] = comp_in_sup_assignment(T, Dod, S)
         for l in range(1, L):
-            shuffle = torch.randperm(T, device=device)
+            shuffle = torch.randperm(T)
             embed[l] = embed[0][shuffle]
             assign[l] = assign[0][shuffle]
         
         if correction is None:
             p = probability_of_overlap(T, Dod, S)
             correction = p/((S-p)*S)
-        unemb = - torch.ones(L, T, Dod, device=device) * correction
+        unemb = - torch.ones(L, T, Dod) * correction
         unemb += embed * (1/S + correction)
 
-        W = torch.zeros(L, D, D, device=device)
-        W[0] = torch.eye(D, device=device)
+        W = torch.zeros(L, D, D)
+        W[0] = torch.eye(D)
 
         # if not capped and not split:
         if True:
@@ -186,7 +127,7 @@ class CompInSup:
             W3 = W.clone()
 
         #First bias is zero, the rest are the biases of the small circuits
-        B = torch.zeros(L, D, device=device)
+        B = torch.zeros(L, D)
         B[1:, :Dod] = small_circuits.b[0]
         B[1:, Dod:2*Dod] = small_circuits.b[1]
         B[1:, 2*Dod:] = small_circuits.b[2]
@@ -204,7 +145,8 @@ class CompInSup:
 
     def run(self, L, z, bs, active_circuits=None, initial_angle=None, 
             capped=False, split=False):
-        device = self.device
+
+        d = self.small_circuits.d
 
         if not capped and not split:
             W = self.W1
@@ -216,10 +158,10 @@ class CompInSup:
         a, active_circuits = self.small_circuits.run(L, z, bs, active_circuits, initial_angle)
         x = a[:,:,:,1:] - 1
 
-        Dod = self.D // 3
+        Dod = self.D // d
         
-        A = torch.zeros(L+1, bs, self.D, device=device)
-        pre_A = torch.zeros(L+1, bs, self.D, device=device)
+        A = torch.zeros(L+1, bs, self.D)
+        pre_A = torch.zeros(L+1, bs, self.D)
 
         [A[0,:,:Dod], A[0,:,Dod:2*Dod], A[0,:,2*Dod:]] = torch.einsum('btn,bti->ibn', self.embed[0,active_circuits],a[1])
         pre_A[0] = A[0]
@@ -229,7 +171,7 @@ class CompInSup:
             A[l+1] = torch.relu(pre_A[l+1])
             #A[l+1] = pre_A[l+1]
 
-        est_a = torch.zeros(L+1, bs, z, 3, device=device)
+        est_a = torch.zeros(L+1, bs, z, 3)
         est_a[0] = a[0]
         for l in range(L):
             est_a[l+1, :, :, 0] = torch.einsum('btn,bn->bt', self.unemb[l, active_circuits], A[l+1,:,:Dod     ])
@@ -249,14 +191,7 @@ class CompInSup:
         return run
     
 
-def expected_mse(T, Dod, l, b):
-    if l == 0:
-        return (0,0)
-    
-    mse_on = l * (z-1)/Dod + (l-1)*(1+b) * z*T/Dod**2
-    mse_x = l * (z-1)/Dod + (l-1)*(1)  * z*T/Dod**2
 
-    return (mse_on, mse_x)
     
     
 
@@ -318,9 +253,9 @@ L=4
 z=1
 bs=1
 
-circ = RotSmallCircuits(T, 0.1, device=device)
-net = CompInSup(D, L, S, circ, correction=0, device=device)
-run = net.run(L, z, bs, active_circuits=torch.tensor([[0]], device=device))
+circ = RotSmallCircuits(T, 0.1)
+net = CompInSup(D, L, S, circ, correction=0)
+run = net.run(L, z, bs, active_circuits=torch.tensor([[0]]))
 
 if (run.x - run.est_x).sum().abs() > 1e-6 and (run.a - run.est_a).sum().abs() > 1e-6:
     print("CompInSup test failed: The output does not match the expected result.")
@@ -371,10 +306,10 @@ def f(b):
 
 
 
-    circ = RotSmallCircuits(T, b, device=device)
-    net = CompInSup(D, L, S, circ, correction=correction, capped=False, device=device)
-    #initial_angle = torch.rand(bs, z, device=device) * 2 * np.pi
-    #active_circuits = torch.randint(T, (bs, z), device=device)
+    circ = RotSmallCircuits(T, b)
+    net = CompInSup(D, L, S, circ, correction=correction, capped=False)
+    #initial_angle = torch.rand(bs, z) * 2 * np.pi
+    #active_circuits = torch.randint(T, (bs, z))
 
     #for z in [1, 2, 3]:
         
@@ -388,7 +323,7 @@ def f(b):
             if (split, capped) == (True, True):
                 labels.append(f'z={z}, capped')
 
-            net = CompInSup(D, L, S, circ, correction=correction, capped=capped, device=device)
+            net = CompInSup(D, L, S, circ, correction=correction, capped=capped)
 
             run = net.run(L, z, bs, 
                         #active_circuits=active_circuits, 
@@ -447,8 +382,8 @@ b = 0.5
 
 correction = 1/(Dod-S)
 
-circ = RotSmallCircuits(T, b, device=device)
-net = CompInSup(D, L, S, circ, correction=correction, device=device)
+circ = RotSmallCircuits(T, b)
+net = CompInSup(D, L, S, circ, correction=correction)
 run = net.run(L, z, bs)
 
 embed = net.embed
@@ -489,7 +424,7 @@ for l in range(1, L):
     plt.show()
 
 #%%
-mask = torch.zeros(bs,T, dtype=torch.bool, device=device)
+mask = torch.zeros(bs,T, dtype=torch.bool)
 for batch in range(bs):
     mask[batch, active_circuits[batch]] = True
 
@@ -515,8 +450,8 @@ print(f"Frequency of overlap: {f:.4f}")
 correction = f/((S-f)*S)
 #correction = 1/Dod
 
-circ = RotSmallCircuits(T, 0.1, device=device)
-net = CompInSup(D, L, S, circ, device=device)
+circ = RotSmallCircuits(T, 0.1)
+net = CompInSup(D, L, S, circ)
 run = net.run(L, z, bs)
 
 x = run.x
@@ -548,8 +483,8 @@ print(f"Probability of overlap: {p:.4f}")
 correction = p/((S-p)*S)
 print(f"Correction: {correction:.4f}")
 
-circ = RotSmallCircuits(T, b, device=device)
-net = CompInSup(D, L, S, circ, correction=correction, device=device)
+circ = RotSmallCircuits(T, b)
+net = CompInSup(D, L, S, circ, correction=correction)
 run = net.run(L, z, bs)
 print(run.est_a[:,:,0,0].mean((-1)))
 
@@ -557,16 +492,16 @@ print(f"Frequency of overlap: {f:.4f}")
 correction = f/((S-f)*S)
 print(f"Correction: {correction:.4f}")
 
-circ = RotSmallCircuits(T, b, device=device)
-net = CompInSup(D, L, S, circ, correction=correction, device=device)
+circ = RotSmallCircuits(T, b)
+net = CompInSup(D, L, S, circ, correction=correction)
 run = net.run(L, z, bs)
 print(run.est_a[:,:,0,0].mean((-1)))
 
 print("Correction = 1/(Dod-S)")
 correction = 1/(Dod-S)
 print(f"Correction: {correction:.4f}")
-circ = RotSmallCircuits(T, b, device=device)
-net = CompInSup(D, L, S, circ, correction=correction, device=device)
+circ = RotSmallCircuits(T, b)
+net = CompInSup(D, L, S, circ, correction=correction)
 run = net.run(L, z, bs)
 print(run.est_a[:,:,0,0].mean((-1)))
 
@@ -583,12 +518,12 @@ f = frequency_of_overlap(T, Dod, S)
 corr_p = p/((S-p)*S)
 corr_f = f/((S-f)*S)
 
-embed, assign = comp_in_sup_assignment(T, Dod, S, device)
+embed, assign = comp_in_sup_assignment(T, Dod, S)
 
-unemb_p = - torch.ones(T, Dod, device=device) * corr_p
+unemb_p = - torch.ones(T, Dod) * corr_p
 unemb_p += embed * (1/S + corr_p)
 
-unemb_f = - torch.ones(T, Dod, device=device) * corr_f
+unemb_f = - torch.ones(T, Dod) * corr_f
 unemb_f += embed * (1/S + corr_f)
 
 E_f = (unemb_f @ embed.T - torch.eye(T)).sum()/(T * (T - 1))
@@ -640,11 +575,11 @@ nets = []
 capped = True
 expected = None
 
-circ = RotSmallCircuits(T, b, device=device)
+circ = RotSmallCircuits(T, b)
 
 for L in [2,3]:
     
-    net = CompInSup(D, L, S, circ, correction=correction, capped=capped, device=device)
+    net = CompInSup(D, L, S, circ, correction=correction, capped=capped)
     run = net.run(L, z, bs)
 
     nets.append(net)
@@ -660,20 +595,20 @@ plot_mse(labels, runs, title, expected)
 L=2
 correction = 1/(Dod-S)
 
-embed = torch.zeros(L, T, Dod, device=device)
-unemb = torch.zeros(L, T, Dod, device=device)
-assign = torch.zeros(L, T, S, device=device, dtype=torch.int64)
+embed = torch.zeros(L, T, Dod)
+unemb = torch.zeros(L, T, Dod)
+assign = torch.zeros(L, T, S, dtype=torch.int64)
 
-embed[0], assign[0] = comp_in_sup_assignment(T, Dod, S, device)
+embed[0], assign[0] = comp_in_sup_assignment(T, Dod, S)
 for l in range(1, L):
-    shuffle = torch.randperm(T, device=device)
+    shuffle = torch.randperm(T)
     embed[l] = embed[0][shuffle]
     assign[l] = assign[0][shuffle]
 
 if correction is None:
     p = probability_of_overlap(T, Dod, S)
     correction = p/((S-p)*S)
-unemb = - torch.ones(L, T, Dod, device=device) * correction
+unemb = - torch.ones(L, T, Dod) * correction
 unemb += embed * (1/S + correction)
 
 l=1
@@ -731,8 +666,8 @@ L = 6
 Dod = D // 3
 b = 0.0
 
-circ = RotSmallCircuits(T, b, device=device)
-net = CompInSup(D, L, S, circ, capped=True, device=device)
+circ = RotSmallCircuits(T, b)
+net = CompInSup(D, L, S, circ, capped=True)
 run = net.run(L, z, bs, capped=True)
 
 est_a = run.est_a
@@ -750,7 +685,7 @@ plt.title(f'D={D}, D/d = {Dod}, T={T}, L={L}, z={z}, bs={bs}, S={S}, b={b}')
 
 
 
-net = CompInSup(D, L, S, circ, capped=False, device=device)
+net = CompInSup(D, L, S, circ, capped=False)
 run = net.run(L, z, bs, capped=False)
 
 est_a = run.est_a
@@ -779,24 +714,24 @@ w = circ.w
 mean_w = circ.mean_w
 diff_w = w - mean_w
 
-embed = torch.zeros(L, T, Dod, device=device)
-unemb = torch.zeros(L, T, Dod, device=device)
-assign = torch.zeros(L, T, S, device=device, dtype=torch.int64)
+embed = torch.zeros(L, T, Dod)
+unemb = torch.zeros(L, T, Dod)
+assign = torch.zeros(L, T, S, dtype=torch.int64)
 
-embed[0], assign[0] = comp_in_sup_assignment(T, Dod, S, device)
+embed[0], assign[0] = comp_in_sup_assignment(T, Dod, S)
 for l in range(1, L):
-    shuffle = torch.randperm(T, device=device)
+    shuffle = torch.randperm(T)
     embed[l] = embed[0][shuffle]
     assign[l] = assign[0][shuffle]
 
 if correction is None:
     p = probability_of_overlap(T, Dod, S)
     correction = p/((S-p)*S)
-unemb = - torch.ones(L, T, Dod, device=device) * correction
+unemb = - torch.ones(L, T, Dod) * correction
 unemb += embed * (1/S + correction)
 
-W = torch.zeros(L, D, D, device=device)
-W[0] = torch.eye(D, device=device)
+W = torch.zeros(L, D, D)
+W[0] = torch.eye(D)
 
 for l in range(1,L):
     [[W[l,:Dod,     :Dod], W[l,:Dod,     Dod:2*Dod], W[l,:Dod,     2*Dod:]],

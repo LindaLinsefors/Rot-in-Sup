@@ -1,4 +1,5 @@
-#%%
+#%% Setup
+#   Setup
 
 from bleach import clean
 import numpy as np
@@ -11,8 +12,9 @@ device = 'cpu'
 torch.set_default_device(device)
 
 #Make sure networks.py and assignments.py are reloaded
-import importlib, assignments
+import importlib, assignments, classes_and_functions
 importlib.reload(assignments)
+importlib.reload(classes_and_functions)
 
 from assignments import (maxT, MaxT,
                          comp_in_sup_assignment,
@@ -21,6 +23,8 @@ from assignments import (maxT, MaxT,
                          probability_of_overlap,
                          frequency_of_overlap,
                          Test)
+
+from classes_and_functions import RunData, RotSmallCircuits, expected_mse
 
 
 # Fake import of RunData
@@ -132,9 +136,12 @@ class IdealCompInSup:
         self.correction = correction
         self.T = small_circuits.T
         self.w = small_circuits.w
+        self.d = small_circuits.d
+        self.rot = small_circuits.rot
 
         T = self.T
         w = self.w
+        d = self.d
 
         embed = torch.zeros(L, T, Dod)
         unemb = torch.zeros(L, T, Dod)
@@ -149,20 +156,25 @@ class IdealCompInSup:
         unemb = - torch.ones(L, T, Dod) * correction
         unemb += embed * (1/S + correction)
 
-        W = torch.zeros(L, 3*Dod, 3*Dod)
-        W[0] = torch.eye(3*Dod)
+        W = torch.zeros(L, d*Dod, d*Dod)
+        W[0] = torch.eye(d*Dod)
 
-        for l in range(1,L):
-            [[W[l,:Dod,     :Dod], W[l,:Dod,     Dod:2*Dod], W[l,:Dod,     2*Dod:]],
-             [W[l,Dod:2*Dod,:Dod], W[l,Dod:2*Dod,Dod:2*Dod], W[l,Dod:2*Dod,2*Dod:]],
-             [W[l,2*Dod:,   :Dod], W[l,2*Dod:,   Dod:2*Dod], W[l,2*Dod:,   2*Dod:]]
-            ]= torch.einsum('tn,tij,tm->ijnm', unemb[l], w, embed[l-1])
+        if d == 3:
+            for l in range(1,L):
+                [[W[l,:Dod,     :Dod], W[l,:Dod,     Dod:2*Dod], W[l,:Dod,     2*Dod:]],
+                 [W[l,Dod:2*Dod,:Dod], W[l,Dod:2*Dod,Dod:2*Dod], W[l,Dod:2*Dod,2*Dod:]],
+                 [W[l,2*Dod:,   :Dod], W[l,2*Dod:,   Dod:2*Dod], W[l,2*Dod:,   2*Dod:]]
+                ]= torch.einsum('tn,tij,tm->ijnm', unemb[l], w, embed[l-1])
+        if d == 2:
+            for l in range(1,L):
+                [[W[l, :Dod, :Dod], W[l, :Dod, Dod:]],
+                 [W[l, Dod:, :Dod], W[l, Dod:, Dod:]]
+                ]= torch.einsum('tn,tij,tm->ijnm', unemb[l], w, embed[l-1])
 
 
         B = torch.zeros(L, D, device=device)
-        B[1:, :Dod] = small_circuits.b[0]
-        B[1:, Dod:2*Dod] = small_circuits.b[1]
-        B[1:, 2*Dod:] = small_circuits.b[2]
+        for i in range(d):
+            B[1:, i*Dod:(i+1)*Dod] = small_circuits.b[i]
 
         self.embed = embed
         self.unemb = unemb
@@ -180,13 +192,16 @@ class IdealCompInSup:
         embed = self.embed
         W = self.W
         B = self.B
+        d = self.d
+        rot = self.rot
 
         a, active_circuits = self.small_circuits.run(L, z, bs)
-        x = a[:, :, :, 1:] - 1
+        if rot:
+            x = a[:, :, :, 1:] - 1
 
-        A = torch.zeros(L+1, bs, 3*Dod)
-        pre_A = torch.zeros(L+1, bs, 3*Dod)
-        no_msk_A = torch.zeros(L+1, bs, 3*Dod)
+        A = torch.zeros(L+1, bs, d*Dod)
+        pre_A = torch.zeros(L+1, bs, d*Dod)
+        no_msk_A = torch.zeros(L+1, bs, d*Dod)
 
         [A[0,:,:Dod], A[0,:,Dod:2*Dod], A[0,:,2*Dod:]] = torch.einsum('btn,bti->ibn', embed[0, active_circuits], a[1])
         no_msk_A[0] = A[0]
@@ -197,38 +212,36 @@ class IdealCompInSup:
             no_msk_A[l+1] = torch.einsum('nm,bm->bn', W[l], no_msk_A[l]) + B[l]
 
             mask = torch.einsum('btn->bn', embed[l, active_circuits]) != 0
-            A[l+1, :, :Dod     ][mask] = pre_A[l+1, :, :Dod     ][mask]
-            A[l+1, :, Dod:2*Dod][mask] = pre_A[l+1, :, Dod:2*Dod][mask]
-            A[l+1, :, 2*Dod:   ][mask] = pre_A[l+1, :, 2*Dod:   ][mask]
+            for i in range(d):
+                A[l+1, :, i*Dod:(i+1)*Dod][mask] = pre_A[l+1, :, i*Dod:(i+1)*Dod][mask]
 
-        est_a = torch.zeros(L+1, bs, z, 3)
-        no_msk_est_a = torch.zeros(L+1, bs, z, 3)
+        est_a = torch.zeros(L+1, bs, z, d)
+        no_msk_est_a = torch.zeros(L+1, bs, z, d)
 
         est_a[0] = a[0]
         no_msk_est_a[0] = a[0]
 
         for l in range(L):
-            est_a[l+1, :, :, 0] = torch.einsum('btn,bn->bt', self.unemb[l, active_circuits], A[l+1, :, :Dod     ])
-            est_a[l+1, :, :, 1] = torch.einsum('btn,bn->bt', self.unemb[l, active_circuits], A[l+1, :, Dod:2*Dod])
-            est_a[l+1, :, :, 2] = torch.einsum('btn,bn->bt', self.unemb[l, active_circuits], A[l+1, :, 2*Dod:   ])
+            for i in range(d):
+                est_a[       l+1, :, :, i] = torch.einsum('btn,bn->bt', self.unemb[l, active_circuits],        A[l+1, :, i*Dod:(i+1)*Dod])
+                no_msk_est_a[l+1, :, :, i] = torch.einsum('btn,bn->bt', self.unemb[l, active_circuits], no_msk_A[l+1, :, i*Dod:(i+1)*Dod])
 
-            no_msk_est_a[l+1, :, :, 0] = torch.einsum('btn,bn->bt', self.unemb[l, active_circuits], no_msk_A[l+1, :, :Dod     ])
-            no_msk_est_a[l+1, :, :, 1] = torch.einsum('btn,bn->bt', self.unemb[l, active_circuits], no_msk_A[l+1, :, Dod:2*Dod])
-            no_msk_est_a[l+1, :, :, 2] = torch.einsum('btn,bn->bt', self.unemb[l, active_circuits], no_msk_A[l+1, :, 2*Dod:   ])
+        if rot:
+            est_x = torch.zeros(L+1, bs, z, 2)
+            no_msk_est_x = torch.zeros(L+1, bs, z, 2)
 
-        est_x = torch.zeros(L+1, bs, z, 2)
-        no_msk_est_x = torch.zeros(L+1, bs, z, 2)
+            est_x[0] = x[0]
+            no_msk_est_x[0] = x[0]
 
-        est_x[0] = x[0]
-        no_msk_est_x[0] = x[0]
+            est_x[1:, :, :, 0] = est_a[1:, :, :, 1] - est_a[1:, :, :, 0]
+            est_x[1:, :, :, 1] = est_a[1:, :, :, 2] - est_a[1:, :, :, 0]
 
-        est_x[1:, :, :, 0] = est_a[1:, :, :, 1] - est_a[1:, :, :, 0]
-        est_x[1:, :, :, 1] = est_a[1:, :, :, 2] - est_a[1:, :, :, 0]
-
-        no_msk_est_x[1:, :, :, 0] = no_msk_est_a[1:, :, :, 1] - no_msk_est_a[1:, :, :, 0]
-        no_msk_est_x[1:, :, :, 1] = no_msk_est_a[1:, :, :, 2] - no_msk_est_a[1:, :, :, 0]
+            no_msk_est_x[1:, :, :, 0] = no_msk_est_a[1:, :, :, 1] - no_msk_est_a[1:, :, :, 0]
+            no_msk_est_x[1:, :, :, 1] = no_msk_est_a[1:, :, :, 2] - no_msk_est_a[1:, :, :, 0]
 
         run = RunData()
+
+        run.active_circuits = active_circuits    
 
         run.A = A
         run.pre_A = pre_A
@@ -238,11 +251,10 @@ class IdealCompInSup:
         run.est_a = est_a
         run.no_msk_est_a = no_msk_est_a
 
-        run.est_x = est_x
-        run.no_msk_est_x = no_msk_est_x
-
-        run.active_circuits = active_circuits
-        run.x = x
+        if rot:
+            run.x = x
+            run.est_x = est_x
+            run.no_msk_est_x = no_msk_est_x
 
         return run
 

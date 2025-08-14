@@ -80,14 +80,13 @@ def maxT(Dod=500, S=5):
         t += 1
 
 
-def comp_in_sup_assignment(T=2000, Dod=500, S=5, device="cpu"):
+def comp_in_sup_assignment(T=2000, Dod=500, S=5):
     """Compute assignments for circuits in superposition.
     
     Args:
         T: Number of small circuits in superposition
         Dod: Number of neurons in the large network divided by 4
         S: Number of large network neurons used by each small circuit neuron
-        device: PyTorch device ("cpu" or "cuda")
         
     Returns:
         Tuple of (assignments, compact_assignments):
@@ -106,7 +105,7 @@ def comp_in_sup_assignment(T=2000, Dod=500, S=5, device="cpu"):
             i += 1
             if i >= Dod:
                 i = 0
-        return assignments.to(device).float(), compact_assignments.to(device).int()
+        return assignments.float(), compact_assignments.int()
 
     steps = get_steps(S, Dod)
     step = next(steps)
@@ -131,16 +130,15 @@ def comp_in_sup_assignment(T=2000, Dod=500, S=5, device="cpu"):
             compact_assignments[t, s] = i
             i += step
 
-    return assignments.to(device).float(), compact_assignments.to(device).int()
+    return assignments.float(), compact_assignments.int()
 
 
-def test_assignments(assignments, S, device="cpu"):
+def test_assignments(assignments, S ):
     """Test the validity of circuit assignments.
     
     Args:
         assignments: Assignment matrix of shape (T, Dod)
         S: Number of large network neurons used by each small circuit neuron
-        device: PyTorch device for computations
     """
     T = assignments.shape[0]
     
@@ -150,7 +148,7 @@ def test_assignments(assignments, S, device="cpu"):
     else:
         print(f'Test 1 failed: Wrong number of assignments for {not_S} circuit(s)')
 
-    overlap = (assignments.to(torch.float)) @ (assignments.to(torch.float).T) - S * torch.eye(T, device=device)
+    overlap = (assignments.to(torch.float)) @ (assignments.to(torch.float).T) - S * torch.eye(T)
     if overlap.max() > 1:
         print('Test 2 failed: Overlap is above one, some pair of circuits')
     else:
