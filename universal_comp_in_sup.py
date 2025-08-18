@@ -23,53 +23,11 @@ from assignments import (maxT, MaxT,
                          probability_of_overlap,
                          frequency_of_overlap)
 
-from classes_and_functions import RunData, RotSmallCircuits, expected_mse
+from classes_and_functions import (RotSmallCircuits, CompInSup, 
+                                   plot_mse_rot, expected_mse_rot)
 
 
 
-def plot_mse(labels, runs, title, expected=None, y_max=None):
-    """Plot the mean squared error for a set of runs."""
-    
-    mse_x = []
-    mse_on = []
-    for run in runs:
-        mse_x.append((run.x - run.est_x).pow(2).mean(dim=(1, 2)).sum(dim=-1).cpu().numpy())
-        mse_on.append((run.a[:,:,:,0] - run.est_a[:,:,:,0]).pow(2).mean(dim=(1, 2)).cpu().numpy())
-
-  
-    fig = plt.figure(figsize=(10, 5))
-
-    plt.subplot(1, 2, 1)
-    for i, label in enumerate(labels):
-        line, = plt.plot(mse_on[i], marker='o', label=label)
-        if expected is not None:
-            plt.plot([expected[i][l][0] for l in range(L+1)], 
-                     linestyle='--', color=line.get_color(), marker='x')
-    plt.title('Active Circuits On-Indicator')
-    plt.xlabel('Layer')
-    plt.ylabel('Mean Squared Error')
-    plt.grid(True)
-    if y_max is not None:
-        plt.ylim(0, y_max) 
-    plt.legend()
-
-    plt.subplot(1, 2, 2)
-    for i, label in enumerate(labels):
-        line, = plt.plot(mse_x[i], marker='o', label=label)
-        if expected is not None:
-            plt.plot([expected[i][l][1] for l in range(L+1)], 
-                     linestyle='--', color=line.get_color(), marker='x')
-    plt.title('Active Circuits Rotated Vector')
-    plt.xlabel('Layer')
-    plt.ylabel('Mean Squared Error')
-    plt.grid(True)
-    plt.legend()
-
-    fig.suptitle(title, fontsize=16)
-    plt.tight_layout()
-    plt.subplots_adjust(top=0.88)  # Make room for the title
-
-    plt.show()
     
 
 
@@ -169,13 +127,13 @@ for split, capped in [(False, False), (True, False), (True, True)]:
         #labels.append(f'z={z}, split={split}')
         #labels.append(f'corr={correction}')
 
-        expected.append([expected_mse(T,Dod,l,b,z) for l in range(L+1)]) 
+        expected.append([expected_mse_rot(T,Dod,l,b,z) for l in range(L+1)]) 
 
 # title = f'D={D}, D/d = {Dod}, T={T}, L={L}, z={z}, bs={bs}, S={S}, b={b}'
 # title = f'D={D}, D/d = {Dod}, T={T}, L={L}, z={z}, bs={bs}, corr type = D'
 title = f'D={D}, D/d = {Dod}, T={T}, L={L}, bs={bs}, S={S}, b={b}'
 
-plot_mse(labels, runs, title, expected)
+plot_mse_rot(L, labels, runs, title, expected)
 
 
 

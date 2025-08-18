@@ -6,10 +6,9 @@ import matplotlib.pyplot as plt
 import torch
 
 #Make sure networks.py and assignments.py are reloaded
-import importlib, networks, assignments, classes_and_functions
+import importlib, networks, assignments
 importlib.reload(networks)
 importlib.reload(assignments)
-importlib.reload(classes_and_functions)
 
 from assignments import (maxT, MaxT,
                          comp_in_sup_assignment,
@@ -24,6 +23,21 @@ from assignments import (maxT, MaxT,
 
 class RunData:
    pass
+
+
+def random_active_circuits(T, bs, z):
+    active_circuits = torch.randint(T, (bs, z))
+
+    # Replace any duplicates with non-duplicates
+    same = torch.zeros(bs, dtype=torch.bool)
+    for i in range(z):
+        for j in range(i):
+            same += (active_circuits[:,i] == active_circuits[:,j])
+    n = same.sum()
+    active_circuits[same] = torch.tensor(range(z*n), dtype=torch.int64).reshape(n, z) % T
+
+    return active_circuits
+
 
 class RotSmallCircuits:
     def __init__(self, T, b):
@@ -63,15 +77,7 @@ class RotSmallCircuits:
 
         #Active circuits
         if active_circuits is None:  # Generating random circuits
-            active_circuits = torch.randint(self.T, (bs, z))
-
-            # Replace any duplicates with non-duplicates
-            same = torch.zeros(bs, dtype=torch.bool)
-            for i in range(z):
-                for j in range(i):
-                    same += (active_circuits[:,i] == active_circuits[:,j])
-            n = same.sum()
-            active_circuits[same] = torch.tensor(range(z*n), dtype=torch.int64).reshape(n, z) % self.T
+            active_circuits = random_active_circuits(self.T, bs, z)
 
         #Initial values
         if initial_angle is None:
@@ -92,14 +98,6 @@ class RotSmallCircuits:
 
 
 
-def expected_mse(T, Dod, l, b, z):
-    if l == 0:
-        return (0,0)
-    
-    mse_on = l * (z-1)/Dod + (l-1)*(1+b) * z*T/Dod**2
-    mse_x =  l * (z-1)/Dod + (l-1)*(1+b) * z*T/Dod**2
-
-    return (mse_on, mse_x)
 
 
 class CompInSup:
@@ -237,12 +235,17 @@ class CompInSup:
             W = self.W3
             unemb = self.embed/self.S
 
-        a, active_circuits = self.small_circuits.run(L, z, bs, active_circuits, initial_angle)
+        if initial_angle is not None:
+            a, active_circuits = self.small_circuits.run(L, z, bs, active_circuits, initial_angle)
+        else:
+            a, active_circuits = self.small_circuits.run(L, z, bs, active_circuits)
 
         A = torch.zeros(L+1, bs, self.D)
         pre_A = torch.zeros(L+1, bs, self.D)
 
-        [A[0,:,:Dod], A[0,:,Dod:2*Dod], A[0,:,2*Dod:]] = torch.einsum('btn,bti->ibn', self.embed[0,active_circuits],a[1])
+        temp_A = torch.einsum('btn,bti->ibn', self.embed[0,active_circuits],a[1])
+        for i in range(d):
+            A[0,:,i*Dod:(i+1)*Dod] = temp_A[i]
         pre_A[0] = A[0]
 
         for l in range(L):
@@ -250,7 +253,7 @@ class CompInSup:
             A[l+1] = torch.relu(pre_A[l+1])
             #A[l+1] = pre_A[l+1]
 
-        est_a = torch.zeros(L+1, bs, z, 3)
+        est_a = torch.zeros(L+1, bs, z, d)
         est_a[0] = a[0]
         for l in range(L):
             for i in range(d):
@@ -277,3 +280,67 @@ class CompInSup:
             run.est_on = est_on
 
         return run
+    
+
+
+
+
+def expected_mse_rot(T, Dod, l, b, z):
+    if l == 0:
+        return (0,0)
+    
+    mse_on = l * (z-1)/Dod + (l-1)*(1+b) * z*T/Dod**2
+    mse_x =  l * (z-1)/Dod + (l-1)*(1+b) * z*T/Dod**2
+
+    return (mse_on, mse_x)
+
+
+def plot_mse_rot(L, labels, runs, title, expected=None, y_max=None):
+    """Plot the mean squared error for a set of runs."""
+    
+    mse_x = []
+    mse_on = []
+    for run in runs:
+        mse_x.append((run.x - run.est_x).pow(2).mean(dim=(1, 2)).sum(dim=-1).cpu().numpy())
+        mse_on.append((run.a[:,:,:,0] - run.est_a[:,:,:,0]).pow(2).mean(dim=(1, 2)).cpu().numpy())
+
+  
+    fig = plt.figure(figsize=(10, 5))
+
+    plt.subplot(1, 2, 1)
+    for i, label in enumerate(labels):
+        line, = plt.plot(mse_on[i], marker='o', label=label)
+        if expected is not None:
+            plt.plot([expected[i][l][0] for l in range(L+1)], 
+                     linestyle='--', color=line.get_color(), marker='x')
+    plt.title('Active Circuits On-Indicator')
+    plt.xlabel('Layer')
+    plt.ylabel('Mean Squared Error')
+    plt.grid(True)
+    if y_max is not None:
+        plt.ylim(0, y_max) 
+    plt.legend()
+
+    plt.subplot(1, 2, 2)
+    for i, label in enumerate(labels):
+        line, = plt.plot(mse_x[i], marker='o', label=label)
+        if expected is not None:
+            plt.plot([expected[i][l][1] for l in range(L+1)], 
+                     linestyle='--', color=line.get_color(), marker='x')
+    plt.title('Active Circuits Rotated Vector')
+    plt.xlabel('Layer')
+    plt.ylabel('Mean Squared Error')
+    plt.grid(True)
+    plt.legend()
+
+    fig.suptitle(title, fontsize=16)
+    plt.tight_layout()
+    plt.subplots_adjust(top=0.88)  # Make room for the title
+
+    plt.show()
+
+
+
+
+
+# %%
