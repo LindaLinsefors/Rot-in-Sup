@@ -340,6 +340,17 @@ def plot_mse_rot(L, labels, runs, title, expected=None, y_max=None):
     plt.show()
 
 
+def get_inactive_circuits(active_circuits, T):
+    bs, z = active_circuits.shape
+
+    all_idx = torch.arange(T).expand(bs, T)          # [bs, T]
+    mask = torch.ones(bs, T, dtype=torch.bool)       # [bs, T]
+    mask[torch.arange(bs).unsqueeze(1), active_circuits] = False
+
+    inactive_circuits = all_idx[mask].view(bs, T - z)  
+
+    return inactive_circuits
+
 
 
 
