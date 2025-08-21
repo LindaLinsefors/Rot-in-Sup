@@ -6,6 +6,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import torch
 import tqdm
+import numpy as np
+from scipy.stats import norm
 
 
 device = 'cpu' 
@@ -24,7 +26,10 @@ from assignments import (maxT, MaxT,
                          frequency_of_overlap,
                          Test)
 
-from classes_and_functions import RunData, RotSmallCircuits, expected_mse
+from classes_and_functions import (RunData, 
+                                   RotSmallCircuits, 
+                                   expected_mse_rot, 
+                                   get_inactive_circuits)
 
 
 # Fake import of RunData
@@ -268,11 +273,11 @@ D = 1200
 T = 1000
 
 S = 5
-z = 3
+z = 5
 bs = 800
 L = 6
 Dod = D // 3
-b=1
+b = 0
 
 circ = RotSmallCircuits(T, b)
 
@@ -281,33 +286,39 @@ version = 'Ideal Comp-in-Sup'
 
 if version == 'Ideal Rot-in-Sup':
     NetClass = IdealRotInSup
+    b = 0
 if version == 'Ideal Comp-in-Sup':
     NetClass = IdealCompInSup
 
-# No special unembed
-correction = 0
-net = NetClass(Dod, L, S, circ, correction)
-run = net.run(z, bs)
+for z in [1, 2, 3, 4, 5]:
+    print(f'z={z}')
 
-mse = (run.est_x - run.x).pow(2).mean(dim=(1, 2)).sum(dim=-1)
-no_mask_mse = (run.no_msk_est_x - run.x).pow(2).mean(dim=(1, 2)).sum(dim=-1)
+    # No special unembed
+    correction = 0
+    net = NetClass(Dod, L, S, circ, correction)
+    run = net.run(z, bs)
 
-plt.plot(mse.cpu().numpy(), marker='o', label='normal')
-#plt.plot(no_mask_mse.cpu().numpy(), marker='o', label='No Mask')
+    mse = (run.est_x - run.x).pow(2).mean(dim=(1, 2)).sum(dim=-1)
+    no_mask_mse = (run.no_msk_est_x - run.x).pow(2).mean(dim=(1, 2)).sum(dim=-1)
+    print(f'observed MSE: {mse}')
 
-# Special unembed
-correction = 1/(Dod-S)
-net = NetClass(Dod, L, S, circ, correction)
-run = net.run(z, bs)
+    plt.plot(mse.cpu().numpy(), marker='o', label=f'z={z}, normal')
+    #plt.plot(no_mask_mse.cpu().numpy(), marker='o', label='No Mask')
 
-mse = (run.est_x - run.x).pow(2).mean(dim=(1, 2)).sum(dim=-1)
-no_mask_mse = (run.no_msk_est_x - run.x).pow(2).mean(dim=(1, 2)).sum(dim=-1)
+    # Special unembed
+    correction = 1/(Dod-S)
+    net = NetClass(Dod, L, S, circ, correction)
+    run = net.run(z, bs)
 
-plt.plot(mse.cpu().numpy(), marker='o', label='Mod Un-embed')
-#plt.plot(no_mask_mse.cpu().numpy(), marker='o', label='No Mask & Mod Un-embed')
+    mse = (run.est_x - run.x).pow(2).mean(dim=(1, 2)).sum(dim=-1)
+    no_mask_mse = (run.no_msk_est_x - run.x).pow(2).mean(dim=(1, 2)).sum(dim=-1)
+    print(f'expected MSE: {mse}\n')
 
-# Expected error
-plt.plot([expected_mse(T,Dod,l,b)[1] for l in range(L+1)], linestyle='--', marker='x', label='Expected MSE')
+    #plt.plot(mse.cpu().numpy(), marker='o', label=f'z={z}, Mod Un-embed')
+    #plt.plot(no_mask_mse.cpu().numpy(), marker='o', label='No Mask & Mod Un-embed')
+
+    # Expected error
+    plt.plot([expected_mse_rot(T,Dod,l,b,z)[1] for l in range(L+1)], linestyle='--', marker='x', label=f'z={z}, Expected MSE')
 
 # Other plot stuff
 plt.grid(True)
@@ -323,6 +334,16 @@ plt.show()
 
 
 #%%
+
+
+
+
+
+
+
+
+
+
 
 
 D = 1200
@@ -366,11 +387,11 @@ no_mask_est_on = run.no_msk_est_a[:, :, :, 0]
 mse = (est_on - on).pow(2).mean(dim=(1, 2))
 no_mask_mse = (no_mask_est_on - on).pow(2).mean(dim=(1, 2))
 
-plt.plot(mse.cpu().numpy(), marker='o', label='Mod Un-embed')
+plt.plot(mse.cpu().numpy(), marker='o', label=f'z={z}, Mod Un-embed')
 #plt.plot(no_mask_mse.cpu().numpy(), marker='o', label='No Mask & Mod Un-embed')
 
 # Expected error
-plt.plot([expected_mse(T,Dod,l,b)[1] for l in range(L+1)], linestyle='--', marker='x', label='Expected MSE')
+plt.plot([expected_mse_rot(T,Dod,l,b,z)[1] for l in range(L+1)], linestyle='--', marker='x', label=f'z={z}, Expected MSE')
 
 # Other plot stuff
 plt.grid(True)
@@ -424,4 +445,125 @@ from ipywidgets import interact
 def f(x, y):
     return x+y
 interact(f, x=10, y=20)
+# %%
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+D = 800
+T = 1000
+
+S = 5
+z = 2
+bs = 800
+L = 4
+Dod = D // 2
+b = 0
+correction = 0
+
+
+circ = RotSmallCircuits(T, b)
+net = IdealRotInSup(Dod, L, S, circ, correction)
+run = net.run(z, bs)
+
+
+# %%
+
+active_error = run.est_x - run.x
+for l in [2,4]:
+
+    mse = active_error[l].pow(2).mean().item()
+    plt.hist(active_error[l].flatten().cpu().numpy(), bins=100, density=True, alpha=0.5, label=f'layer {l}, MSE={mse:.4f}')
+
+    # Normal curve
+    x = np.linspace(-0.4, 0.4, 200)
+    variance = (expected_mse_rot(T, Dod, l, b, z)[1]/2)
+    pdf = norm.pdf(x, loc=0, scale=variance**0.5)
+    plt.plot(x, pdf, label=f'Normal, sigma^2={variance:.4f}')
+
+plt.legend()
+plt.title(f'Error distribution for active circuits\n D={D}, dT={2*T}, S={S}, z={z}, batch size={bs}')    
+plt.show()
+# %%
+
+reduced_bs = bs
+
+active = run.active_circuits[:reduced_bs]
+inactive = get_inactive_circuits(active, T)
+unemb = net.unemb
+X = run.X[:, :reduced_bs]
+
+inactive_error = torch.zeros(L+1, reduced_bs, T-z, 2)
+
+for l in range(L):
+    inactive_error[l+1, :, :, 0] = torch.einsum('btn,bn->bt', unemb[l, inactive], X[l+1, :, :Dod]) 
+    inactive_error[l+1, :, :, 1] = torch.einsum('btn,bn->bt', unemb[l, inactive], X[l+1, :, Dod:])
+
+#%%
+
+for l in [2,4]:
+
+    mse = inactive_error[l].pow(2).mean().item()
+    plt.hist(inactive_error[l].flatten().cpu().numpy(), bins=100, density=True, alpha=0.5, label=f'layer {l}, MSE={mse:.4f}')
+
+    # Normal curve
+    x = np.linspace(-0.5, 0.5, 200)
+    variance = (expected_mse_rot(T, Dod, 1, b, z+1)[1]/2)
+    pdf = norm.pdf(x, loc=0, scale=variance**0.5)
+    plt.plot(x, pdf, label=f'Normal, sigma^2={variance:.4f}')
+
+plt.legend()
+plt.title(f'Error distribution for inactive circuits\n D={D}, dT={2*T}, S={S}, z={z}, batch size={bs}')    
+plt.show()
+
+
+for l in [2,4]:
+
+    mse = inactive_error[l].pow(2).mean().item()
+    plt.hist(inactive_error[l].flatten().cpu().numpy(), bins=100, density=True, alpha=0.5, label=f'layer {l}, MSE={mse:.4f}')
+
+    # Normal curve
+    x = np.linspace(-0.5, 0.5, 200)
+    variance = (expected_mse_rot(T, Dod, 1, b, z+1)[1]/2)
+    pdf = norm.pdf(x, loc=0, scale=variance**0.5)
+    plt.plot(x, pdf, label=f'Normal, sigma^2={variance:.4f}')
+
+plt.ylim(0, 0.5)
+plt.legend()
+plt.title(f'Error distribution for inactive circuits\n D={D}, dT={2*T}, S={S}, z={z}, batch size={reduced_bs}')    
+plt.show()
+# %%
+
+
+for l in [2,4]:
+
+    mse = inactive_error[l].pow(2).mean().item()
+    plt.hist(inactive_error[l].flatten().cpu().numpy(), bins=100, density=True, alpha=0.5, label=f'layer {l}, MSE={mse:.4f}')
+
+    # Normal curve
+    x = np.linspace(-0.3, 0.3, 200)
+    variance = (expected_mse_rot(T, Dod, 1, b, z+1)[1]/2)
+    pdf = norm.pdf(x, loc=0, scale=variance**0.5)
+    plt.plot(x, pdf, label=f'Normal, sigma^2={variance:.4f}')
+
+plt.ylim(0, 0.0001)
+plt.legend()
+plt.title(f'Error distribution for inactive circuits\n D={D}, dT={2*T}, S={S}, z={z}, batch size={reduced_bs}')    
+plt.show()
 # %%
