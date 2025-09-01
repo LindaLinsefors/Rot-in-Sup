@@ -275,7 +275,7 @@ T = 1000
 S = 5
 z = 5
 bs = 800
-L = 6
+L = 3
 Dod = D // 3
 b = 0
 
@@ -291,7 +291,7 @@ if version == 'Ideal Comp-in-Sup':
     NetClass = IdealCompInSup
 
 for z in [1, 2, 3, 4, 5]:
-    print(f'z={z}')
+    #print(f'z={z}')
 
     # No special unembed
     correction = 0
@@ -300,10 +300,10 @@ for z in [1, 2, 3, 4, 5]:
 
     mse = (run.est_x - run.x).pow(2).mean(dim=(1, 2)).sum(dim=-1)
     no_mask_mse = (run.no_msk_est_x - run.x).pow(2).mean(dim=(1, 2)).sum(dim=-1)
-    print(f'observed MSE: {mse}')
+    #print(f'observed MSE: {mse}')
 
     plt.plot(mse.cpu().numpy(), marker='o', label=f'z={z}, normal')
-    #plt.plot(no_mask_mse.cpu().numpy(), marker='o', label='No Mask')
+    plt.plot(no_mask_mse.cpu().numpy(), marker='o', label='z={z}, No Mask')
 
     # Special unembed
     correction = 1/(Dod-S)
@@ -312,7 +312,7 @@ for z in [1, 2, 3, 4, 5]:
 
     mse = (run.est_x - run.x).pow(2).mean(dim=(1, 2)).sum(dim=-1)
     no_mask_mse = (run.no_msk_est_x - run.x).pow(2).mean(dim=(1, 2)).sum(dim=-1)
-    print(f'expected MSE: {mse}\n')
+    #print(f'expected MSE: {mse}\n')
 
     #plt.plot(mse.cpu().numpy(), marker='o', label=f'z={z}, Mod Un-embed')
     #plt.plot(no_mask_mse.cpu().numpy(), marker='o', label='No Mask & Mod Un-embed')
@@ -507,7 +507,7 @@ reduced_bs = bs
 active = run.active_circuits[:reduced_bs]
 inactive = get_inactive_circuits(active, T)
 unemb = net.unemb
-X = run.X[:, :reduced_bs]
+X = run.no_msk_X[:, :reduced_bs]
 
 inactive_error = torch.zeros(L+1, reduced_bs, T-z, 2)
 
@@ -517,7 +517,7 @@ for l in range(L):
 
 #%%
 
-for l in [2,4]:
+for l in [2,3]:
 
     mse = inactive_error[l].pow(2).mean().item()
     plt.hist(inactive_error[l].flatten().cpu().numpy(), bins=100, density=True, alpha=0.5, label=f'layer {l}, MSE={mse:.4f}')
@@ -533,7 +533,7 @@ plt.title(f'Error distribution for inactive circuits\n D={D}, dT={2*T}, S={S}, z
 plt.show()
 
 
-for l in [2,4]:
+for l in [2,3]:
 
     mse = inactive_error[l].pow(2).mean().item()
     plt.hist(inactive_error[l].flatten().cpu().numpy(), bins=100, density=True, alpha=0.5, label=f'layer {l}, MSE={mse:.4f}')

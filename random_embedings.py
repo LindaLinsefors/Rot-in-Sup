@@ -112,9 +112,9 @@ for D in [20, 40, 80, 160]:
 for d in data:
     for i, x in enumerate(d['sqrt_log_n_over_D']):
         if i == 0:
-            line = plt.plot([x**2]*bs, d['mean_worst_overlap'][i]**2, 'o', label=f'D = {d["D"]}', alpha=0.15)
+            line = plt.plot([x]*bs, d['mean_worst_overlap'][i], 'o', label=f'D = {d["D"]}', alpha=0.15)
         else:
-            plt.plot([x**2]*bs, d['mean_worst_overlap'][i]**2, 'o', color=line[0].get_color(), alpha=0.15)
+            plt.plot([x]*bs, d['mean_worst_overlap'][i], 'o', color=line[0].get_color(), alpha=0.15)
 
 title = f'''Max squared dot-product of any pair of T random unit vectors
 T = [2*D, 4*D, 8*D, 16*D, 32*D, 64*D, 128*D]
@@ -122,13 +122,13 @@ Runs per settings = {bs}'''
 
 
 plt.title(title)
-plt.xlabel('ln(T) / D')
+plt.xlabel('sqrt( ln(T) / D )')
 plt.ylabel('Max Squared Dot-product')
 plt.grid(True)
 plt.xlim(left=0)
 plt.ylim(bottom=0)
 
-plt.plot([0, 1], [0, 4], 'k--', label='y = 4x')  # Reference line for y = 4x
+plt.plot([0, 1], [0, 2], 'k--', label='y = 2x')  # Reference line for y = 2x
 
 leg = plt.legend()
 for lh in leg.legend_handles:
