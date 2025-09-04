@@ -13,11 +13,11 @@ import tqdm
 import pandas as pd
 
 #Make sure networks.py and assignments.py are reloaded
-import importlib, old_networks, assignments
-importlib.reload(old_networks)
+import importlib, rot_in_sup_networks, assignments
+importlib.reload(rot_in_sup_networks)
 importlib.reload(assignments)
 
-from old_networks import RotInSupNetwork_4d, RotInSupNetwork_3d, expected_mse_4d, expected_mse_3d
+from rot_in_sup_networks import RotInSupNetwork_4d, RotInSupNetwork_3d, expected_mse_4d, expected_mse_3d
 from assignments import (maxT, MaxT,
                          expected_overlap_error, 
                          expected_squared_overlap_error, 
