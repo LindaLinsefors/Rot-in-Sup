@@ -6,8 +6,7 @@ import matplotlib.pyplot as plt
 import torch
 
 #Make sure networks.py and assignments.py are reloaded
-import importlib, networks, assignments
-importlib.reload(networks)
+import importlib, assignments
 importlib.reload(assignments)
 
 from assignments import (maxT, MaxT,

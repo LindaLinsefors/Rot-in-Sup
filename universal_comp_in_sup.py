@@ -11,8 +11,7 @@ device = 'cpu'
 torch.set_default_device(device)
 
 #Make sure networks.py and assignments.py are reloaded
-import importlib, networks, assignments, classes_and_functions
-importlib.reload(networks)
+import importlib, assignments, classes_and_functions
 importlib.reload(assignments)
 importlib.reload(classes_and_functions)
 

@@ -7,7 +7,7 @@ import torch
 import tqdm
 
 #Make sure networks.py and assignments.py are reloaded
-import importlib, networks, assignments
+import importlib, assignments
 importlib.reload(assignments)
 
 from assignments import (
