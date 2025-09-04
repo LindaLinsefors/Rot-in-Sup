@@ -551,7 +551,7 @@ for l in [2,4]:
 
         # Normal curve
         x = np.linspace(-0.4, 0.4, 200)
-        variance = (expected_mse_rot(T, Dod, l, b, z)[1]/2)
+        variance = (expected_mse_rot(T, Dod, l, b, z)/2)
         pdf = norm.pdf(x, loc=0, scale=variance**0.5)
         #plt.plot(x, pdf, label=f'Normal, sigma^2={variance:.4f}')
 
@@ -598,7 +598,7 @@ for l in [2,4]:
 
         # Normal curve
         x = np.linspace(-0.4, 0.4, 200)
-        variance = (expected_mse_rot(T, Dod, l, b, z)[1]/2)
+        variance = (expected_mse_rot(T, Dod, l, b, z)/2)
         pdf = norm.pdf(x, loc=0, scale=variance**0.5)
         #plt.plot(x, pdf, label=f'Normal, sigma^2={variance:.4f}')
 
@@ -635,7 +635,7 @@ for l in [2,4]:
 
     # Normal curve
     x = np.linspace(-0.5, 0.5, 200)
-    variance = (expected_mse_rot(T, Dod, 1, b, z+1)[1]/2)
+    variance = (expected_mse_rot(T, Dod, 1, b, z+1)/2)
     pdf = norm.pdf(x, loc=0, scale=variance**0.5)
     plt.plot(x, pdf, label=f'Normal, sigma^2={variance:.4f}')
 
@@ -651,7 +651,7 @@ for l in [2,4]:
 
     # Normal curve
     x = np.linspace(-0.5, 0.5, 200)
-    variance = (expected_mse_rot(T, Dod, 1, b, z+1)[1]/2)
+    variance = (expected_mse_rot(T, Dod, 1, b, z+1)/2)
     pdf = norm.pdf(x, loc=0, scale=variance**0.5)
     plt.plot(x, pdf, label=f'Normal, sigma^2={variance:.4f}')
 
@@ -669,7 +669,7 @@ for l in [2,4]:
 
     # Normal curve
     x = np.linspace(-0.3, 0.3, 200)
-    variance = (expected_mse_rot(T, Dod, 1, b, z+1)[1]/2)
+    variance = (expected_mse_rot(T, Dod, 1, b, z+1)/2)
     pdf = norm.pdf(x, loc=0, scale=variance**0.5)
     plt.plot(x, pdf, label=f'Normal, sigma^2={variance:.4f}')
 

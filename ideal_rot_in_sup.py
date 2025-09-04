@@ -142,7 +142,7 @@ class IdealCompInSup:
         self.T = small_circuits.T
         self.w = small_circuits.w
         self.d = small_circuits.d
-        self.rot = small_circuits.rot
+        self.is_rot = small_circuits.is_rot
 
         T = self.T
         w = self.w
@@ -198,11 +198,11 @@ class IdealCompInSup:
         W = self.W
         B = self.B
         d = self.d
-        rot = self.rot
+        is_rot = self.is_rot
 
         a, active_circuits = self.small_circuits.run(L, z, bs)
-        if rot:
-            x = a[:, :, :, 1:] - 1
+        if is_rot:
+            x = a[:, :, :, -2:] - 1
 
         A = torch.zeros(L+1, bs, d*Dod)
         pre_A = torch.zeros(L+1, bs, d*Dod)
@@ -231,7 +231,7 @@ class IdealCompInSup:
                 est_a[       l+1, :, :, i] = torch.einsum('btn,bn->bt', self.unemb[l, active_circuits],        A[l+1, :, i*Dod:(i+1)*Dod])
                 no_msk_est_a[l+1, :, :, i] = torch.einsum('btn,bn->bt', self.unemb[l, active_circuits], no_msk_A[l+1, :, i*Dod:(i+1)*Dod])
 
-        if rot:
+        if is_rot:
             est_x = torch.zeros(L+1, bs, z, 2)
             no_msk_est_x = torch.zeros(L+1, bs, z, 2)
 
@@ -256,7 +256,7 @@ class IdealCompInSup:
         run.est_a = est_a
         run.no_msk_est_a = no_msk_est_a
 
-        if rot:
+        if is_rot:
             run.x = x
             run.est_x = est_x
             run.no_msk_est_x = no_msk_est_x
@@ -318,7 +318,7 @@ for z in [1, 2, 3, 4, 5]:
     #plt.plot(no_mask_mse.cpu().numpy(), marker='o', label='No Mask & Mod Un-embed')
 
     # Expected error
-    plt.plot([expected_mse_rot(T,Dod,l,b,z)[1] for l in range(L+1)], linestyle='--', marker='x', label=f'z={z}, Expected MSE')
+    plt.plot([expected_mse_rot(T,Dod,l,b,z) for l in range(L+1)], linestyle='--', marker='x', label=f'z={z}, Expected MSE')
 
 # Other plot stuff
 plt.grid(True)
@@ -391,7 +391,7 @@ plt.plot(mse.cpu().numpy(), marker='o', label=f'z={z}, Mod Un-embed')
 #plt.plot(no_mask_mse.cpu().numpy(), marker='o', label='No Mask & Mod Un-embed')
 
 # Expected error
-plt.plot([expected_mse_rot(T,Dod,l,b,z)[1] for l in range(L+1)], linestyle='--', marker='x', label=f'z={z}, Expected MSE')
+plt.plot([expected_mse_rot(T,Dod,l,b,z) for l in range(L+1)], linestyle='--', marker='x', label=f'z={z}, Expected MSE')
 
 # Other plot stuff
 plt.grid(True)
@@ -493,7 +493,7 @@ for l in [2,4]:
 
     # Normal curve
     x = np.linspace(-0.4, 0.4, 200)
-    variance = (expected_mse_rot(T, Dod, l, b, z)[1]/2)
+    variance = (expected_mse_rot(T, Dod, l, b, z)/2)
     pdf = norm.pdf(x, loc=0, scale=variance**0.5)
     plt.plot(x, pdf, label=f'Normal, sigma^2={variance:.4f}')
 
@@ -524,7 +524,7 @@ for l in [2,3]:
 
     # Normal curve
     x = np.linspace(-0.5, 0.5, 200)
-    variance = (expected_mse_rot(T, Dod, 1, b, z+1)[1]/2)
+    variance = (expected_mse_rot(T, Dod, 1, b, z+1)/2)
     pdf = norm.pdf(x, loc=0, scale=variance**0.5)
     plt.plot(x, pdf, label=f'Normal, sigma^2={variance:.4f}')
 
@@ -540,7 +540,7 @@ for l in [2,3]:
 
     # Normal curve
     x = np.linspace(-0.5, 0.5, 200)
-    variance = (expected_mse_rot(T, Dod, 1, b, z+1)[1]/2)
+    variance = (expected_mse_rot(T, Dod, 1, b, z+1)/2)
     pdf = norm.pdf(x, loc=0, scale=variance**0.5)
     plt.plot(x, pdf, label=f'Normal, sigma^2={variance:.4f}')
 
@@ -558,7 +558,7 @@ for l in [2,4]:
 
     # Normal curve
     x = np.linspace(-0.3, 0.3, 200)
-    variance = (expected_mse_rot(T, Dod, 1, b, z+1)[1]/2)
+    variance = (expected_mse_rot(T, Dod, 1, b, z+1)/2)
     pdf = norm.pdf(x, loc=0, scale=variance**0.5)
     plt.plot(x, pdf, label=f'Normal, sigma^2={variance:.4f}')
 
