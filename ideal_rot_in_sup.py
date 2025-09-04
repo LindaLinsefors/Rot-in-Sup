@@ -1,3 +1,20 @@
+'''
+This notebook is definding and testing an idealised version of Comp-in-Sup. 
+
+I.e. we're cheeting in order to make the math assumtions exactly true, 
+in order to check just the calculations, independent of if the assumptions are true.
+
+In a real implementation we would have to use ReLUs to gate the the noise, 
+by setting up the small circuits such that the ReLUs will be off (negative 
+preactivations) when not in use by an active circuit. In this implementation
+we ignore all that, and instead use a mask to set all not-used-by-an-active-circuit 
+neurons to zero.
+'''
+
+
+
+
+
 #%% Setup
 #   Setup
 
@@ -27,21 +44,22 @@ from assignments import (maxT, MaxT,
                          Test)
 
 from classes_and_functions import (RunData, 
-                                   RotSmallCircuits, 
                                    expected_mse_rot, 
                                    get_inactive_circuits)
+
+from classes_and_functions import RotSmallCircuits_3D as RotSmallCircuits
 
 
 # Fake import of RunData
 # Fake import of RotSmallCircuits
 
 class IdealRotInSup:
-    def __init__(self, Dod, L, S, small_circuits, correction=None):
+    def __init__(self, Dod, L, S, small_circuits, u_correction=None):
         self.Dod = Dod
         self.L = L
         self.S = S
         self.small_circuits = small_circuits
-        self.correction = correction
+        self.u_correction = u_correction
         self.T = small_circuits.T
         self.r = small_circuits.r
 
@@ -58,8 +76,8 @@ class IdealRotInSup:
             embed[l] = embed[0][shuffle]
             assign[l] = assign[0][shuffle]
 
-        unemb = - torch.ones(L, T, Dod) * correction
-        unemb += embed * (1/S + correction)
+        unemb = - torch.ones(L, T, Dod) * u_correction
+        unemb += embed * (1/S + u_correction)
 
         R = torch.zeros(L, 2*Dod, 2*Dod)
         R[0] = torch.eye(2*Dod)
@@ -86,7 +104,7 @@ class IdealRotInSup:
         R = self.R
 
         a, active_circuits = self.small_circuits.run(L, z, bs)
-        x = a[:, :, :, 1:] - 1
+        x = a[:, :, :, -2:] - 1
 
         X = torch.zeros(L+1, bs, 2*Dod)
         pre_X = torch.zeros(L+1, bs, 2*Dod)
@@ -133,12 +151,12 @@ class IdealRotInSup:
     
 
 class IdealCompInSup:
-    def __init__(self, Dod, L, S, small_circuits, correction=None):
+    def __init__(self, Dod, L, S, small_circuits, u_correction=None):
         self.Dod = Dod
         self.L = L
         self.S = S
         self.small_circuits = small_circuits
-        self.correction = correction
+        self.u_correction = u_correction
         self.T = small_circuits.T
         self.w = small_circuits.w
         self.d = small_circuits.d
@@ -158,23 +176,19 @@ class IdealCompInSup:
             embed[l] = embed[0][shuffle]
             assign[l] = assign[0][shuffle]
 
-        unemb = - torch.ones(L, T, Dod) * correction
-        unemb += embed * (1/S + correction)
+        unemb = - torch.ones(L, T, Dod) * u_correction
+        unemb += embed * (1/S + u_correction)
 
         W = torch.zeros(L, d*Dod, d*Dod)
         W[0] = torch.eye(d*Dod)
 
-        if d == 3:
-            for l in range(1,L):
-                [[W[l,:Dod,     :Dod], W[l,:Dod,     Dod:2*Dod], W[l,:Dod,     2*Dod:]],
-                 [W[l,Dod:2*Dod,:Dod], W[l,Dod:2*Dod,Dod:2*Dod], W[l,Dod:2*Dod,2*Dod:]],
-                 [W[l,2*Dod:,   :Dod], W[l,2*Dod:,   Dod:2*Dod], W[l,2*Dod:,   2*Dod:]]
-                ]= torch.einsum('tn,tij,tm->ijnm', unemb[l], w, embed[l-1])
-        if d == 2:
-            for l in range(1,L):
-                [[W[l, :Dod, :Dod], W[l, :Dod, Dod:]],
-                 [W[l, Dod:, :Dod], W[l, Dod:, Dod:]]
-                ]= torch.einsum('tn,tij,tm->ijnm', unemb[l], w, embed[l-1])
+        
+        for l in range(1,L):
+            temp_W = torch.einsum('tn,tij,tm->ijnm', unemb[l], w, embed[l-1])
+
+            for i in range(d):
+                for j in range(d):
+                    W[l, i*Dod:(i+1)*Dod, j*Dod:(j+1)*Dod] = temp_W[i,j]
 
 
         B = torch.zeros(L, D, device=device)
@@ -294,8 +308,8 @@ for z in [1, 2, 3, 4, 5]:
     #print(f'z={z}')
 
     # No special unembed
-    correction = 0
-    net = NetClass(Dod, L, S, circ, correction)
+    u_correction = 0
+    net = NetClass(Dod, L, S, circ, u_correction)
     run = net.run(z, bs)
 
     mse = (run.est_x - run.x).pow(2).mean(dim=(1, 2)).sum(dim=-1)
@@ -306,8 +320,8 @@ for z in [1, 2, 3, 4, 5]:
     plt.plot(no_mask_mse.cpu().numpy(), marker='o', label='z={z}, No Mask')
 
     # Special unembed
-    correction = 1/(Dod-S)
-    net = NetClass(Dod, L, S, circ, correction)
+    u_correction = 1/(Dod-S)
+    net = NetClass(Dod, L, S, circ, u_correction)
     run = net.run(z, bs)
 
     mse = (run.est_x - run.x).pow(2).mean(dim=(1, 2)).sum(dim=-1)
@@ -361,8 +375,8 @@ circ = RotSmallCircuits(T, b)
 version = 'Ideal Comp-in-Sup'
 
 # No special unembed
-correction = 0
-net = NetClass(Dod, L, S, circ, correction)
+u_correction = 0
+net = NetClass(Dod, L, S, circ, u_correction)
 run = net.run(z, bs)
 
 on = run.a[:, :, :, 0]
@@ -376,8 +390,8 @@ no_mask_mse = (no_mask_est_on - on).pow(2).mean(dim=(1, 2))
 #plt.plot(no_mask_mse.cpu().numpy(), marker='o', label='No Mask')
 
 # Special unembed
-correction = 1/(Dod-S)
-net = NetClass(Dod, L, S, circ, correction)
+u_correction = 1/(Dod-S)
+net = NetClass(Dod, L, S, circ, u_correction)
 run = net.run(z, bs)
 
 on = run.a[:, :, :, 0]
@@ -475,11 +489,11 @@ bs = 800
 L = 4
 Dod = D // 2
 b = 0
-correction = 0
+u_correction = 0
 
 
 circ = RotSmallCircuits(T, b)
-net = IdealRotInSup(Dod, L, S, circ, correction)
+net = IdealRotInSup(Dod, L, S, circ, u_correction)
 run = net.run(z, bs)
 
 

@@ -1,4 +1,10 @@
-# %% Setup step_in_sup
+'''
+Setting up and running step functions in superpossition.
+'''
+
+
+
+#  %% Setup step_in_sup
 #    Setup step_in_sup
 
 
