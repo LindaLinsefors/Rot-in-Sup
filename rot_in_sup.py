@@ -1,4 +1,21 @@
-#%% Setup  
+'''
+Running experiments on the networks found in rot_in_sup_networks.py.
+
+These implentations uses indicator neurons with a fixed embedding so they 
+don't have to be re-calculated from layer to layer. This means less noise,
+but also a less general implementation.
+
+RotInSupNetwork_4d uses two 'on' indicators for each small network 
+bringing the neurons per circuit up to d=4.
+
+RotInSupNetwork_3d uses one 'on' indicator for each small network
+bringing the neurons per circuit up to d=3, at the cost of higer error.
+'''
+
+
+
+
+# %% Setup  
 #   Setup
 
 ######################################################################################

@@ -1,5 +1,5 @@
 '''
-Various version of RotInSupNetwork
+Various version of Rotation in Superpossition.
 
 These implentations uses indicator neurons with a fixed embedding so they 
 don't have to be re-calculated from layer to layer. This means less noise,
