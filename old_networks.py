@@ -1,6 +1,10 @@
 '''
 Various version of RotInSupNetwork
 
+These implentations uses indicator neurons with a fixed embedding so they 
+don't have to be re-calculated from layer to layer. This means less noise,
+but also a less general implementation.
+
 RotInSupNetwork_4d uses two 'on' indicators for each small network 
 bringing the neurons per circuit up to d=4.
 

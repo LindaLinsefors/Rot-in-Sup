@@ -22,8 +22,11 @@ from assignments import (maxT, MaxT,
                          probability_of_overlap,
                          frequency_of_overlap)
 
-from classes_and_functions import (RotSmallCircuits, CompInSup, 
-                                   plot_mse_rot, expected_mse_rot)
+from classes_and_functions import (RotSmallCircuits_3D, 
+                                   RotSmallCircuits_4D,
+                                   CompInSup, 
+                                   plot_mse_rot, 
+                                   expected_mse_rot)
 
 
 
@@ -34,22 +37,38 @@ from classes_and_functions import (RotSmallCircuits, CompInSup,
 # %% Very small test
 #    Very small test
 
+
+
 Dod=5
-D=Dod*3#
+D=Dod*d
 S=2
 T=2
 L=4
 z=1
 bs=1
 
-circ = RotSmallCircuits(T, 0.1)
-net = CompInSup(D, L, S, circ, correction=0)
-run = net.run(L, z, bs, active_circuits=torch.tensor([[0]]))
+for d in [3,4]:
+    print(f'd={d}')
 
-if (run.x - run.est_x).sum().abs() > 1e-6 and (run.a - run.est_a).sum().abs() > 1e-6:
-    print("CompInSup test failed: The output does not match the expected result.")
-else:
-    print("CompInSup test passed: The output matches the expected result.")
+    if d == 3:
+        circ = RotSmallCircuits_3D(T, 0.1)
+    elif d == 4:
+        circ = RotSmallCircuits_4D(T, 0.1)
+
+    net = CompInSup(D, L, S, circ, u_correction=0)
+    run = net.run(L, z, bs, active_circuits=torch.tensor([[0]]))
+
+    if (run.x - run.est_x).sum().abs() > 1e-6 and (run.a - run.est_a).sum().abs() > 1e-6:
+        print("CompInSup test failed: The network output does not match the circuit outputs.")
+    elif not (run.x.abs() < 1).all():
+        print("CompInSup test failed: The vector values are not in the expected range [-1, 1].")
+    elif d == 3 and not (run.a[:,:,:,0] == 1).all():
+        print("CompInSup test failed: The on-indicator values are not as expected (should be 1).")
+    elif d == 4 and not (run.a[:,:,:,0] == 1.5).all() and not (run.a[:,:,:,1] == 0.5).all():
+        print("CompInSup test failed: The on-indicator values are not as expected (should be 1.5 and 0.5).") 
+    else:
+        print("CompInSup test passed: The output matches the expected result.")
+
 
 
 #%% Plot MSE #######################################################################################

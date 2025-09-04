@@ -152,8 +152,8 @@ class RotSmallCircuits_4D:
         self.diff_w = torch.zeros(T, 4, 4) #Part of the weights that is different for each circuit
         
         #These toghether with the bias for the two first neruons implements a step function.
-        self.mean_w[0:1, 0] = 2
-        self.mean_w[0:1, 1] = -2
+        self.mean_w[0:2, 0] = 2
+        self.mean_w[0:2, 1] = -2
         #(a0 - a1) = ReLU(2*(a0 - a1) - 0.5) - ReLU(2*(a0 - a1) - 1.5) 
 
         #Shift to overcome the bias and pass though the ReLUs
@@ -179,7 +179,7 @@ class RotSmallCircuits_4D:
     def run(self, L, z, bs, active_circuits=None, initial_angle=None):
         """Run all small circuits on input random inputs"""
 
-        a = torch.zeros(L+1, bs, z, 3)
+        a = torch.zeros(L+1, bs, z, 4)
 
         #Active circuits
         if active_circuits is None:  # Generating random circuits
@@ -392,11 +392,17 @@ class CompInSup:
         run.A = A
         run.pre_A = pre_A
 
-        if self.rot:
-            x = a[:,:,:,1:] - 1
-            est_x = est_a[:, :, :, 1:] - est_a[:, :, :, 0][:, :, :, None]
-            on = a[:,:,:,0]
-            est_on = est_a[:, :, :, 0]
+        if self.is_rot:
+
+            if d == 3:
+                on = a[:,:,:,0]
+                est_on = est_a[:, :, :, 0]
+            elif d == 4:
+                on = a[:,:,:,0] - a[:,:,:,1]
+                est_on = est_a[:, :, :, 0] - est_a[:, :, :, 1]
+
+            x = a[:,:,:,-2:] - 1
+            est_x = est_a[:, :, :, -2:] - est_on[:, :, :, None]
 
             run.x = x
             run.est_x = est_x
