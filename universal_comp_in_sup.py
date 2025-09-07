@@ -22,8 +22,9 @@ from assignments import (maxT, MaxT,
                          probability_of_overlap,
                          frequency_of_overlap)
 
-from classes_and_functions import (RotSmallCircuits_3D, 
-                                   RotSmallCircuits_4D,
+from classes_and_functions import (RotSmallCircuits_3d, 
+                                   RotSmallCircuits_4d,
+                                   RotSmallCircuits,
                                    CompInSup, 
                                    plot_mse_rot, 
                                    expected_mse_rot)
@@ -40,7 +41,6 @@ from classes_and_functions import (RotSmallCircuits_3D,
 
 
 Dod=5
-D=Dod*d
 S=2
 T=2
 L=4
@@ -48,13 +48,10 @@ z=1
 bs=1
 
 for d in [3,4]:
+    D=Dod*d
     print(f'd={d}')
 
-    if d == 3:
-        circ = RotSmallCircuits_3D(T, 0.1)
-    elif d == 4:
-        circ = RotSmallCircuits_4D(T, 0.1)
-
+    circ = RotSmallCircuits(T, 0.1, d)
     net = CompInSup(D, L, S, circ, u_correction=0)
     run = net.run(L, z, bs, active_circuits=torch.tensor([[0]]))
 
@@ -77,53 +74,55 @@ for d in [3,4]:
 
 D = 1200
 T = 1000
+d = 4
 
-S = 3
-z = 3
+Dod = D // d
+
+
 bs = 800
 L = 2
-Dod = D // 3
 S = 5
-z = 1
+
 b = 1
 
 f = frequency_of_overlap(T, Dod, S)
 p = probability_of_overlap(T, Dod, S)
 
 
-#correction = f/((S-f)*S)
-#correction = p/((S-p)*S)
-correction = 1/(Dod-S)
+#u_correction = f/((S-f)*S)
+#u_correction = p/((S-p)*S)
+#u_correction = 1/(Dod-S)
+#u_correction = 0
+u_correction = None
 
 
 runs = []
 labels = []
 expected = []
 
-# for correction_type in [ 'p', 'f', 'D']:
-#     if correction_type == 'p':
-#         correction = p/((S-p)*S)
-#     if correction_type == 'f':
-#         correction = f/((S-f)*S)
-#     if correction_type == 'D':
-#         correction = 1/(Dod-S)
+# for u_correction_type in [ 'p', 'f', 'D']:
+#     if u_correction_type == 'p':
+#         u_correction = p/((S-p)*S)
+#     if u_correction_type == 'f':
+#         u_correction = f/((S-f)*S)
+#     if u_correction_type == 'D':
+#         u_correction = 1/(Dod-S)
 
 # for b in [0.3, 0.4, 0.5]:
 #     for S in [3,4,5]:
 
-#for correction in [0, 0.0021, 0.0022, 0.0023, 0.0024, 0.0025, 0.0026, 0.0027, 0.0028]:
+#for u_correction in [0, 0.0021, 0.0022, 0.0023, 0.0024, 0.0025, 0.0026, 0.0027, 0.0028]:
 
-
-
-circ = RotSmallCircuits(T, b)
-net = CompInSup(D, L, S, circ, correction=correction)
+circ = RotSmallCircuits(T, b, d)
+net = CompInSup(D, L, S, circ, u_correction=u_correction)
 #initial_angle = torch.rand(bs, z) * 2 * np.pi
 #active_circuits = torch.randint(T, (bs, z))
 
 #for z in [1, 2, 3]:
     
 for split, capped in [(False, False), (True, False), (True, True)]:
-    for z in [3, 2, 1]:
+    for z in [2,1]:
+    #for z in [3, 2, 1]:
 
         if (split, capped) == (False, False):
             labels.append(f'z={z}')
@@ -132,7 +131,7 @@ for split, capped in [(False, False), (True, False), (True, True)]:
         if (split, capped) == (True, True):
             labels.append(f'z={z}, capped')
 
-        net = CompInSup(D, L, S, circ, correction=correction)
+        net = CompInSup(D, L, S, circ, u_correction=u_correction)
 
         run = net.run(L, z, bs, 
                     #active_circuits=active_circuits, 
@@ -140,16 +139,16 @@ for split, capped in [(False, False), (True, False), (True, True)]:
                     capped=capped, split=split)
 
         runs.append(run)
-        #labels.append(f'corr type={correction_type}')
+        #labels.append(f'corr type={u_correction_type}')
         #labels.append(f'b={b}, S={S}')
         #labels.append(f'z={z}, split={split}')
-        #labels.append(f'corr={correction}')
+        #labels.append(f'corr={u_correction}')
 
         expected.append([expected_mse_rot(T,Dod,l,b,z) for l in range(L+1)]) 
 
 # title = f'D={D}, D/d = {Dod}, T={T}, L={L}, z={z}, bs={bs}, S={S}, b={b}'
 # title = f'D={D}, D/d = {Dod}, T={T}, L={L}, z={z}, bs={bs}, corr type = D'
-title = f'D={D}, D/d = {Dod}, T={T}, L={L}, bs={bs}, S={S}, b={b}'
+title = f'D={D}, D/d = {Dod}, T={T}, L={L}, bs={bs}, S={S}, b={b}, d={d}'
 
 plot_mse_rot(L, labels, runs, title, expected)
 
@@ -189,10 +188,10 @@ L = 5
 Dod = D // 3
 b = 0.5
 
-correction = 1/(Dod-S)
+u_correction = 1/(Dod-S)
 
 circ = RotSmallCircuits(T, b)
-net = CompInSup(D, L, S, circ, correction=correction)
+net = CompInSup(D, L, S, circ, u_correction=u_correction)
 run = net.run(L, z, bs)
 
 embed = net.embed
@@ -256,8 +255,8 @@ f = frequency_of_overlap(T, Dod, S)
 print(f"Probability of overlap: {p:.4f}")
 print(f"Frequency of overlap: {f:.4f}")
 #%%
-correction = f/((S-f)*S)
-#correction = 1/Dod
+u_correction = f/((S-f)*S)
+#u_correction = 1/Dod
 
 circ = RotSmallCircuits(T, 0.1)
 net = CompInSup(D, L, S, circ)
@@ -289,28 +288,28 @@ p = probability_of_overlap(T, Dod, S)
 f = frequency_of_overlap(T, Dod, S)
 
 print(f"Probability of overlap: {p:.4f}")
-correction = p/((S-p)*S)
-print(f"Correction: {correction:.4f}")
+u_correction = p/((S-p)*S)
+print(f"Correction: {u_correction:.4f}")
 
 circ = RotSmallCircuits(T, b)
-net = CompInSup(D, L, S, circ, correction=correction)
+net = CompInSup(D, L, S, circ, u_correction=u_correction)
 run = net.run(L, z, bs)
 print(run.est_a[:,:,0,0].mean((-1)))
 
 print(f"Frequency of overlap: {f:.4f}")
-correction = f/((S-f)*S)
-print(f"Correction: {correction:.4f}")
+u_correction = f/((S-f)*S)
+print(f"Correction: {u_correction:.4f}")
 
 circ = RotSmallCircuits(T, b)
-net = CompInSup(D, L, S, circ, correction=correction)
+net = CompInSup(D, L, S, circ, u_correction=u_correction)
 run = net.run(L, z, bs)
 print(run.est_a[:,:,0,0].mean((-1)))
 
 print("Correction = 1/(Dod-S)")
-correction = 1/(Dod-S)
-print(f"Correction: {correction:.4f}")
+u_correction = 1/(Dod-S)
+print(f"Correction: {u_correction:.4f}")
 circ = RotSmallCircuits(T, b)
-net = CompInSup(D, L, S, circ, correction=correction)
+net = CompInSup(D, L, S, circ, u_correction=u_correction)
 run = net.run(L, z, bs)
 print(run.est_a[:,:,0,0].mean((-1)))
 
@@ -372,9 +371,9 @@ f = frequency_of_overlap(T, Dod, S)
 p = probability_of_overlap(T, Dod, S)
 
 
-#correction = f/((S-f)*S)
-#correction = p/((S-p)*S)
-correction = 1/(Dod-S)
+#u_correction = f/((S-f)*S)
+#u_correction = p/((S-p)*S)
+u_correction = 1/(Dod-S)
 
 
 runs = []
@@ -388,7 +387,7 @@ circ = RotSmallCircuits(T, b)
 
 for L in [2,3]:
     
-    net = CompInSup(D, L, S, circ, correction=correction, capped=capped)
+    net = CompInSup(D, L, S, circ, u_correction=u_correction, capped=capped)
     run = net.run(L, z, bs)
 
     nets.append(net)
@@ -402,7 +401,7 @@ plot_mse(labels, runs, title, expected)
 
 
 L=2
-correction = 1/(Dod-S)
+u_correction = 1/(Dod-S)
 
 embed = torch.zeros(L, T, Dod)
 unemb = torch.zeros(L, T, Dod)
@@ -414,11 +413,11 @@ for l in range(1, L):
     embed[l] = embed[0][shuffle]
     assign[l] = assign[0][shuffle]
 
-if correction is None:
+if u_correction is None:
     p = probability_of_overlap(T, Dod, S)
-    correction = p/((S-p)*S)
-unemb = - torch.ones(L, T, Dod) * correction
-unemb += embed * (1/S + correction)
+    u_correction = p/((S-p)*S)
+unemb = - torch.ones(L, T, Dod) * u_correction
+unemb += embed * (1/S + u_correction)
 
 l=1
 
@@ -533,11 +532,11 @@ for l in range(1, L):
     embed[l] = embed[0][shuffle]
     assign[l] = assign[0][shuffle]
 
-if correction is None:
+if u_correction is None:
     p = probability_of_overlap(T, Dod, S)
-    correction = p/((S-p)*S)
-unemb = - torch.ones(L, T, Dod) * correction
-unemb += embed * (1/S + correction)
+    u_correction = p/((S-p)*S)
+unemb = - torch.ones(L, T, Dod) * u_correction
+unemb += embed * (1/S + u_correction)
 
 W = torch.zeros(L, D, D)
 W[0] = torch.eye(D)

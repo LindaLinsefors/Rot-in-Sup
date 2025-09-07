@@ -60,7 +60,7 @@ def random_rotation_matrices(T):
 
 
 
-class RotSmallCircuits_3D:
+class RotSmallCircuits_3d:
     """
     Small circuits that rotate a 2D vector and have one on-indicator neuron.
 
@@ -135,7 +135,7 @@ class RotSmallCircuits_3D:
 
 
 
-class RotSmallCircuits_4D:
+class RotSmallCircuits_4d:
     """
     Small circuits that uses the first two neurons to implement a step function, 
     to track if the circuit is active or not, and the last two neurons to rotate a 2D vector.
@@ -203,6 +203,13 @@ class RotSmallCircuits_4D:
         return a, active_circuits
 
 
+def RotSmallCircuits(T,b,d):
+    if d == 3:
+        return RotSmallCircuits_3d(T,b)
+    elif d == 4:
+        return RotSmallCircuits_4d(T,b)
+    else:
+        raise ValueError("d must be 3 or 4")
 
 
 
@@ -420,7 +427,7 @@ def expected_mse_rot(T, Dod, l, b, z):
     '''
 
     if l == 0:
-        return (0,0)
+        return 0
     
     mse =  l * (z-1)/Dod + (l-1)*(1+b) * z*T/Dod**2
     return mse
@@ -434,7 +441,7 @@ def plot_mse_rot(L, labels, runs, title, expected=None, y_max=None):
     mse_on = []
     for run in runs:
         mse_x.append((run.x - run.est_x).pow(2).mean(dim=(1, 2)).sum(dim=-1).cpu().numpy())
-        mse_on.append((run.a[:,:,:,0] - run.est_a[:,:,:,0]).pow(2).mean(dim=(1, 2)).cpu().numpy())
+        mse_on.append((run.on - run.est_on).pow(2).mean(dim=(1, 2)).cpu().numpy())
 
   
     fig = plt.figure(figsize=(10, 5))

@@ -96,37 +96,42 @@ a
 
 # %%
 
-T = 1000
+T = 125
+Dod = 100
 
-D = 1200
-d = 4
-Dod = D // d
+d = 2
+D = Dod * d
 
-L = 7
+L = 5
 bs = 800
 n = 1
 
-S = 3
+S = 5
 z = 1
 
-correction = 0
+correction = None
 
 circ = StepSmallCircuits(T)
 
-for correction in [None]:
-    #for z in [3,2,1]:
+for split, capped in [(False, False), (True, False), (True, True)]:
+    for z in [1]:
+    #for z in [3, 2, 1]:
+
+        if (split, capped) == (False, False):
+            label = f'z={z}'
+        if (split, capped) == (True, False):
+            label = f'z={z}, split'
+        if (split, capped) == (True, True):
+            label = f'z={z}, capped'
+
         mse = torch.zeros(n, L+1)
         for i in range(n):
-            net = CompInSup(D, L, S, circ, correction=correction)
-            run = net.run(L, z, bs)
+            net = CompInSup(D, L, S, circ, u_correction=correction)
+            run = net.run(L, z, bs, capped=capped, split=split)
             a = 1
             est_a = run.est_a[:,:,:,0] - run.est_a[:,:,:,1]
             mse[i] = (est_a - 1).pow(2).mean(dim=(1, 2))
 
-            if correction == 0:
-                label = f'no correction'
-            else:
-                label = f' '
 
             if i == 0:
                 line = plt.plot(mse[i], label=label, marker='o')

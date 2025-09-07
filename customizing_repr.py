@@ -1,3 +1,13 @@
+'''
+Changing how tensors are displayed including shape, mean, 
+and saves 2D float tensors as images.
+
+First cells changes how tensors are displayed.
+Second cell resets it back to original.
+
+Coded up by Gurkenglas, and slighty modified by me.
+'''
+
 #%% Customizing the __repr__ method of torch.Tensor to save images 
 #   Customizing the __repr__ method of torch.Tensor to save images
 
