@@ -47,7 +47,7 @@ from classes_and_functions import (RunData,
                                    expected_mse_rot, 
                                    get_inactive_circuits)
 
-from classes_and_functions import RotSmallCircuits_3D as RotSmallCircuits
+from classes_and_functions import RotSmallCircuits_3d, RotSmallCircuits_4d
 
 
 # Fake import of RunData
@@ -222,7 +222,11 @@ class IdealCompInSup:
         pre_A = torch.zeros(L+1, bs, d*Dod)
         no_msk_A = torch.zeros(L+1, bs, d*Dod)
 
-        [A[0,:,:Dod], A[0,:,Dod:2*Dod], A[0,:,2*Dod:]] = torch.einsum('btn,bti->ibn', embed[0, active_circuits], a[1])
+        temp_A = torch.einsum('btn,bti->ibn', embed[0, active_circuits], a[1])
+        for i in range(d):
+            A[0,:,i*Dod:(i+1)*Dod] = temp_A[i]
+        pre_A[0] = A[0]
+
         no_msk_A[0] = A[0]
         pre_A[0] = A[0]
 
@@ -283,17 +287,17 @@ class IdealCompInSup:
 #   Plot
 
 
-D = 1200
-T = 1000
+D = 1000
+T = 2000
 
 S = 5
 z = 5
 bs = 800
 L = 3
-Dod = D // 3
+Dod = 500
 b = 0
 
-circ = RotSmallCircuits(T, b)
+circ = RotSmallCircuits_4d(T, b)
 
 version = 'Ideal Comp-in-Sup'
 #version = 'Ideal Rot-in-Sup'
@@ -317,7 +321,7 @@ for z in [1, 2, 3, 4, 5]:
     #print(f'observed MSE: {mse}')
 
     plt.plot(mse.cpu().numpy(), marker='o', label=f'z={z}, normal')
-    plt.plot(no_mask_mse.cpu().numpy(), marker='o', label='z={z}, No Mask')
+    plt.plot(no_mask_mse.cpu().numpy(), marker='o', label=f'z={z}, No Mask')
 
     # Special unembed
     u_correction = 1/(Dod-S)

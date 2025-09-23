@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import torch
 import tqdm
 
-device = 'cpu' 
+device = 'cpu'
 torch.set_default_device(device)
 
 #Make sure networks.py and assignments.py are reloaded
@@ -26,8 +26,10 @@ from classes_and_functions import (RotSmallCircuits_3d,
                                    RotSmallCircuits_4d,
                                    RotSmallCircuits,
                                    CompInSup, 
-                                   plot_mse_rot, 
-                                   expected_mse_rot)
+                                   plot_mse_rot,
+                                   plot_worst_error_rot,
+                                   expected_mse_rot,
+                                   plot_rot)
 
 
 
@@ -72,16 +74,16 @@ for d in [3,4]:
 #   Plot MSE
 
 
-D = 1200
-T = 1000
+T = 500
+D = 2*T
 d = 4
 
 Dod = D // d
 
 
-bs = 800
-L = 2
-S = 5
+bs = T
+L = 5
+S = 3
 
 b = 1
 
@@ -113,56 +115,264 @@ expected = []
 
 #for u_correction in [0, 0.0021, 0.0022, 0.0023, 0.0024, 0.0025, 0.0026, 0.0027, 0.0028]:
 
-circ = RotSmallCircuits(T, b, d)
-net = CompInSup(D, L, S, circ, u_correction=u_correction)
+#circ = RotSmallCircuits(T, b, d)
+#net = CompInSup(D, L, S, circ, u_correction=u_correction)
 #initial_angle = torch.rand(bs, z) * 2 * np.pi
 #active_circuits = torch.randint(T, (bs, z))
 
 #for z in [1, 2, 3]:
-    
-for split, capped in [(False, False), (True, False), (True, True)]:
-    for z in [2,1]:
-    #for z in [3, 2, 1]:
 
-        if (split, capped) == (False, False):
-            labels.append(f'z={z}')
-        if (split, capped) == (True, False):
-            labels.append(f'z={z}, split')
-        if (split, capped) == (True, True):
-            labels.append(f'z={z}, capped')
+Ss = [5]
 
-        net = CompInSup(D, L, S, circ, u_correction=u_correction)
+#nets = {}
+#for S in Ss:
+    #nets[S] = CompInSup(D, L, S, circ, u_correction=u_correction)
 
-        run = net.run(L, z, bs, 
-                    #active_circuits=active_circuits, 
-                    #initial_angle=initial_angle,
-                    capped=capped, split=split)
+for z in [1,2]:    
+    #for split, capped in [(False, False), (True, False), (True, True)]:
+    for split, capped in [(True, True)]:
+        for S in Ss:
+            #for w_correction in [1, 1.5, 2]:
+            for b in [0.0, 0.5, 1.0]:
 
-        runs.append(run)
-        #labels.append(f'corr type={u_correction_type}')
-        #labels.append(f'b={b}, S={S}')
-        #labels.append(f'z={z}, split={split}')
-        #labels.append(f'corr={u_correction}')
+                circ = RotSmallCircuits(T, b, d)
+                net = CompInSup(D, L, S, circ)
 
-        expected.append([expected_mse_rot(T,Dod,l,b,z) for l in range(L+1)]) 
+
+                if (split, capped) == (False, False):
+                    labels.append(f'z={z}, S={S}')
+                if (split, capped) == (True, False):
+                    labels.append(f'z={z}, split, S={S}')
+                if (split, capped) == (True, True):
+                    #labels.append(f'z={z}, capped, S={S}')
+                    #labels.append(f'z={z}, w_corr={w_correction}')
+                    labels.append(f'z={z}, b={b}')
+
+                #net = CompInSup(D, L, S, circ, w_correction=w_correction)
+                run = net.run(L, z, bs, 
+                            #active_circuits=active_circuits, 
+                            #initial_angle=initial_angle,
+                            capped=capped, split=split)
+
+                runs.append(run)
+                #labels.append(f'corr type={u_correction_type}')
+                #labels.append(f'b={b}, S={S}')
+                #labels.append(f'z={z}, split={split}')
+                #labels.append(f'corr={u_correction}')
+
+                expected.append([expected_mse_rot(T,Dod,l,b,z) for l in range(L+1)]) 
 
 # title = f'D={D}, D/d = {Dod}, T={T}, L={L}, z={z}, bs={bs}, S={S}, b={b}'
 # title = f'D={D}, D/d = {Dod}, T={T}, L={L}, z={z}, bs={bs}, corr type = D'
-title = f'D={D}, D/d = {Dod}, T={T}, L={L}, bs={bs}, S={S}, b={b}, d={d}'
+title = f'D={D}, D/d = {Dod}, T={T}, L={L}, bs={bs}, S={S}, d={d}'
 
 plot_mse_rot(L, labels, runs, title, expected)
+
+plot_worst_error_rot(L, labels, runs, title)
 
 
 
 #%%
 
 
+T = 500
+L = 5
+b = 1
+
+S = 6
+D = 1000
+d = 4
+bs = T
+z = 1
+Dod = D // d
+active_circuits = torch.arange(T).reshape(T, 1)
+
+
+circ = RotSmallCircuits(T, b, d)
+net = CompInSup(D, L, S, circ)
+run = net.run(L, z, bs, capped=True, active_circuits=active_circuits)
+
+#%%
+plot_rot(run)
+plot_mse_rot(L, [' '], [run], f'All circuits, D={D}, T={T}, L={L}, z={z}, S={S}, b={b}')
+plot_worst_error_rot(L, [' '], [run], f'All circuits, D={D}, T={T}, L={L}, z={z}, S={S}, b={b}')
+#%%
+
+unemb = net.embed/S
+A = run.A
+a = run.a
+
+est_a = torch.zeros(L+1, bs, T, d)
+
+for l in range(L):
+    for i in range(d):
+        est_a[l+1, :, :, i] = torch.einsum('tn,bn->bt', unemb[l], A[l+1,:,i*Dod:(i+1)*Dod])
+
+inactive_est_a = est_a.clone()
+for l in range(1, L+1):
+    for i in range(d):
+        inactive_est_a[l,:,:,i].fill_diagonal_(0)
+
+est_on = est_a[:,:,:,0] - est_a[:,:,:,1]
+inactive_est_on = inactive_est_a[:,:,:,0] - inactive_est_a[:,:,:,1]
+
+
+est_x = est_a[:,:,:,-2:] - est_on[:,:,:,None]
+x = torch.zeros(L+1, bs, T, 2)
+x[:,torch.arange(T),torch.arange(T),:] = run.x[:,:,0,:]
+
+error_x = (est_x - x).norm(dim=-1)
+inactive_error_x = error_x.clone()
+inactive_error_x[:,torch.arange(T),torch.arange(T)] = 0
+#%%
+
+data = inactive_error_x[2]
+L=2
+
+plt.imshow(data, cmap='gray_r', aspect='equal')
+plt.axis('off')
+plt.colorbar()
+plt.show()
+
+
+#%%
+l=2
+worst_impact_on_others_on = inactive_est_on[l].max(dim=1).values
+worst_impact_on_self_on   = inactive_est_on[l].max(dim=0).values
+self_error_on                   = (est_on[l].diag() - 1).abs()
+
+worst_impact_on_others_x = inactive_error_x[l].max(dim=1).values
+worst_impact_on_self_x   = inactive_error_x[l].max(dim=0).values
+self_error_x             = error_x[l].diag()
+
+plt.plot(sorted(worst_impact_on_others_on, reverse=True), label='Worst impact on others, on')
+plt.plot(sorted(worst_impact_on_self_on, reverse=True), label='Worst impact on self, on')
+plt.plot(sorted(self_error_on, reverse=True), label='Self error, on')
+plt.plot(sorted(worst_impact_on_others_x, reverse=True), label='Worst impact on others, x')
+plt.plot(sorted(worst_impact_on_self_x, reverse=True), label='Worst impact on self, x')
+plt.plot(sorted(self_error_x, reverse=True), label='Self error, x')
+plt.grid(True)
+plt.legend()
+plt.show()
+
+#%%
+
+bs_2 = int(5*T)
+z_2 = 2
+run_2 = net.run(L, z_2, bs_2, capped=True)   
+
+#%%
+
+A = run_2.A
+active_circuits = run_2.active_circuits
+
+est_a_2 = torch.zeros(L+1, bs_2, T, d)
+for l in range(L):
+    for i in range(d):
+        est_a_2[l+1, :, :, i] = torch.einsum('tn,bn->bt', unemb[l], A[l+1,:,i*Dod:(i+1)*Dod])
+
+inactive_est_a_2 = est_a_2.clone()
+inactive_est_a_2[:,torch.arange(bs_2).unsqueeze(1), active_circuits,:] = 0
+
+inactive_est_on_2 = inactive_est_a_2[:,:,:,0] - inactive_est_a_2[:,:,:,1]
+inactive_est_x_2 = inactive_est_a_2[:,:,:,-2:] - inactive_est_on_2[:,:,:,None]
+inactive_error_x_2 = inactive_est_x_2.norm(dim=-1)
+
+l=2
+worst_impact_on_self_on_2 = inactive_est_on_2[l].max(dim=0).values
+worst_impact_on_self_x_2 = inactive_error_x_2[l].max(dim=0).values
+
+#%%
+
+plt.plot(sorted(worst_impact_on_self_on_2, reverse=True), label='Worst impact on self, on, z=2')
+plt.plot(sorted(worst_impact_on_self_x_2, reverse=True), label='Worst impact on self, x, z=2')
+plt.grid(True)
+plt.legend()
+plt.title(f'z=2, T={T}, D={D}, d={d}, L={l}, S={S}')
+plt.show()
+
+
+#%%
+
+plt.plot(sorted(worst_impact_on_others_on, reverse=True), label='Worst impact on others, on')
+plt.plot(sorted(worst_impact_on_self_on, reverse=True), label='Worst impact on self, on')
+plt.plot(sorted(worst_impact_on_self_on_2, reverse=True), label='Worst impact on self, on, z=2')
+plt.plot(sorted(self_error_on, reverse=True), label='Self error, on')
+plt.plot(sorted(worst_impact_on_others_x, reverse=True), label='Worst impact on others, x')
+plt.plot(sorted(worst_impact_on_self_x, reverse=True), label='Worst impact on self, x')
+plt.plot(sorted(worst_impact_on_self_x_2, reverse=True), label='Worst impact on self, x, z=2')
+plt.plot(sorted(self_error_x, reverse=True), label='Self error, x')
+plt.grid(True)
+plt.title(f'T={T}, D={D}, d={d}, L={l}, S={S}')
+plt.legend()
+plt.show()
+
+# %%
+
+
+sort_by =  worst_impact_on_self_x_2
+perm = torch.argsort(sort_by, descending=True)
+
+#plt.plot(worst_impact_on_others_on[perm], label='Worst impact on others, on',alpha=0.5)
+#plt.plot(worst_impact_on_self_on[perm], label='Worst impact on self, on',alpha=0.5)
+#plt.plot(worst_impact_on_self_on_2[perm], label='Worst impact on self, on, z=2',alpha=0.5)
+#plt.plot(self_error_on[perm], label='Self error, on',alpha=0.5)
+plt.plot(worst_impact_on_others_x[perm], label='Worst impact on others, x',alpha=0.5)
+plt.plot(worst_impact_on_self_x[perm], label='Worst impact on self, x',alpha=0.5)
+plt.plot(worst_impact_on_self_x_2[perm], label='Worst impact on self, x, z=2',alpha=0.5)   
+#plt.plot(self_error_x[perm], label='Self error, x',alpha=0.5)
+plt.legend()
+plt.show()
+
+sort_by =  worst_impact_on_self_on_2
+perm = torch.argsort(sort_by, descending=True)
+
+plt.plot(worst_impact_on_others_on[perm], label='Worst impact on others, on',alpha=0.5)
+plt.plot(worst_impact_on_self_on[perm], label='Worst impact on self, on',alpha=0.5)
+plt.plot(worst_impact_on_self_on_2[perm], label='Worst impact on self, on, z=2',alpha=0.5)
+#plt.plot(self_error_on[perm], label='Self error, on',alpha=0.5)
+#plt.plot(worst_impact_on_others_x[perm], label='Worst impact on others, x',alpha=0.5)
+#plt.plot(worst_impact_on_self_x[perm], label='Worst impact on self, x',alpha=0.5)
+#plt.plot(worst_impact_on_self_x_2[perm], label='Worst impact on self, x, z=2',alpha=0.5)   
+#plt.plot(self_error_x[perm], label='Self error, x',alpha=0.5)
+plt.legend()
+plt.show()
+
+#%%
+L=2
+
+worst_impact_on_others_on = inactive_est_on[L].max(dim=0).values
+worst_impact_on_self_on   = inactive_est_on[L].max(dim=1).values
+self_error_on                   = (est_on[L].diag() - 1).abs()
+
+worst_impact_on_others_x = inactive_error_x[L].max(dim=0).values
+worst_impact_on_self_x   = inactive_error_x[L].max(dim=1).values
+self_error_x             = error_x[L].diag()
+
+plt.hist(worst_impact_on_others_on, bins=30, alpha=0.5 ,label='Worst impact on others, on')
+plt.hist(worst_impact_on_self_on, bins=30, alpha=0.5 ,label='Worst impact on self, on')
+plt.hist(self_error_on, bins=30, alpha=0.5 ,label='Self error, on')
+plt.hist(worst_impact_on_others_x, bins=30, alpha=0.5 ,label='Worst impact on others, x')
+plt.hist(worst_impact_on_self_x, bins=30, alpha=0.5 ,label='Worst impact on self, x')
+plt.hist(self_error_x, bins=30, alpha=0.5 ,label='Self error, x')
+plt.legend()
+plt.show()
+
+N=20
+plt.plot(worst_impact_on_others_on[:N], 'o-', label='Worst impact on others, on')
+plt.plot(worst_impact_on_self_on[:N], 'o-', label='Worst impact on self, on')
+plt.plot(self_error_on[:N], 'o-', label='Self error, on')
+plt.plot(worst_impact_on_others_x[:N], 'o-', label='Worst impact on others, x')
+plt.plot(worst_impact_on_self_x[:N], 'o-', label='Worst impact on self, x')
+plt.plot(self_error_x[:N], 'o-', label='Self error, x')
+plt.legend()
+plt.show()
 
 
 
 
-
-
+#%%
+ 
 
 
 
@@ -364,7 +574,7 @@ bs = 800
 L = 2
 Dod = D // 3
 b = 1
-S = 5
+
 z = 1
 
 f = frequency_of_overlap(T, Dod, S)

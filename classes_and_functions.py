@@ -60,6 +60,25 @@ def random_rotation_matrices(T):
 
 
 
+
+def get_inactive_circuits(active_circuits, T):
+    """
+    Given a tensor listing the active circuits for each batch, 
+    returns a tensor listing the inactive circuits for each batch.
+    """
+
+    bs, z = active_circuits.shape # bs is batch size, z is number of active circuits
+
+    all_idx = torch.arange(T).expand(bs, T)          # [bs, T]
+    mask = torch.ones(bs, T, dtype=torch.bool)       # [bs, T]
+    mask[torch.arange(bs).unsqueeze(1), active_circuits] = False
+
+    inactive_circuits = all_idx[mask].view(bs, T - z)  #[bs, T-z]
+
+    return inactive_circuits
+
+
+
 class RotSmallCircuits_3d:
     """
     Small circuits that rotate a 2D vector and have one on-indicator neuron.
@@ -218,7 +237,7 @@ def RotSmallCircuits(T,b,d):
 
 
 class CompInSup:
-    def __init__(self, D, L, S, small_circuits, u_correction=None):
+    def __init__(self, D, L, S, small_circuits, u_correction=None, w_correction=None):
 
         d = int(small_circuits.d)  # Number of neurons in each small circuit
         T = small_circuits.T # Number of small circuits
@@ -272,9 +291,6 @@ class CompInSup:
         unemb = - torch.ones(L, T, Dod) * u_correction
         unemb += embed * (1/S + u_correction)
 
-        W = torch.zeros(L, D, D) # Weight matrices for the large network
-        W[0] = torch.eye(D) # First layer is always the identity
-
 
         '''There are three sets of weight matrices, to compare different implementations.'''
 
@@ -318,10 +334,15 @@ class CompInSup:
             above_diag = torch.triu(torch.ones(T, T), diagonal=1).bool()
             every_unwanted_interaction = torch.einsum('tn,nm,um->tu', embed[l], capped_embed, embed[l-1])[above_diag].sum()
             every_possible_interaction = T*(T-1)/2 * S*S
-            capped_corr_1 = every_unwanted_interaction/(every_possible_interaction-every_unwanted_interaction)
+            capped_corr_1 = every_unwanted_interaction/(every_possible_interaction-every_unwanted_interaction) #* 10
+            #print('Layer', l, 'capped_corr_1:', capped_corr_1.item())
 
-            ces = capped_embed.sum()
-            capped_corr_2 = ces/(Dod**2-ces) #Alternative correction value.
+            #ces = capped_embed.sum()
+            #capped_corr_2 = ces/(Dod**2-ces) #Alternative correction value.
+            #print('Layer', l, 'capped_corr_2:', capped_corr_2.item())
+
+            if w_correction is not None:
+                capped_corr_1 *= w_correction
 
             capped_embed -= (torch.ones_like(capped_embed) - capped_embed) * capped_corr_1
 
@@ -390,31 +411,46 @@ class CompInSup:
             for i in range(d):
                 est_a[l+1, :, :, i] = torch.einsum('btn,bn->bt', unemb[l, active_circuits], A[l+1,:,i*Dod:(i+1)*Dod])
 
-        est_x = est_a[:, :, :, 1:] - est_a[:, :, :, 0][:, :, :, None]
+
+        inactive_circuits = get_inactive_circuits(active_circuits, self.T)
+        est_inactive_a = torch.zeros(L+1, bs, self.T - z, d)
+        est_inactive_a[0] = 0
+        for l in range(L):
+            for i in range(d):
+                est_inactive_a[l+1, :, :, i] = torch.einsum('btn,bn->bt', unemb[l, inactive_circuits], A[l+1,:,i*Dod:(i+1)*Dod])
 
         run = RunData()
         run.a = a
         run.est_a = est_a
+        run.est_inactive_a = est_inactive_a
         run.active_circuits = active_circuits
         run.A = A
         run.pre_A = pre_A
+        run.unemb = unemb
+        run.T = self.T
+        run.Dod = self.Dod
 
         if self.is_rot:
 
             if d == 3:
                 on = a[:,:,:,0]
                 est_on = est_a[:, :, :, 0]
+                est_inactive_on = est_inactive_a[:, :, :, 0]
             elif d == 4:
                 on = a[:,:,:,0] - a[:,:,:,1]
                 est_on = est_a[:, :, :, 0] - est_a[:, :, :, 1]
+                est_inactive_on = est_inactive_a[:, :, :, 0] - est_inactive_a[:, :, :, 1]
 
             x = a[:,:,:,-2:] - 1
             est_x = est_a[:, :, :, -2:] - est_on[:, :, :, None]
+            est_inactive_x = est_inactive_a[:, :, :, -2:] - est_inactive_on[:, :, :, None]
 
             run.x = x
             run.est_x = est_x
             run.on = on
             run.est_on = est_on
+            run.est_inactive_on = est_inactive_on
+            run.est_inactive_x = est_inactive_x
 
         return run
     
@@ -429,29 +465,69 @@ def expected_mse_rot(T, Dod, l, b, z):
     if l == 0:
         return 0
     
-    mse =  l * (z-1)/Dod + (l-1)*(1+b) * z*T/Dod**2
+    mse =  l * (z-1)/Dod + (l-1)*(1+4+b) * z*T/Dod**2
+    #mse =  l * (z-1)/Dod + (l-1) * z*T/Dod**2
     return mse
 
 
 
-def plot_mse_rot(L, labels, runs, title, expected=None, y_max=None):
+def plot_mse_rot(L, labels, runs, title, expected=None, y_max=None, include_inactive=True):
     """Plot the mean squared error for a set of runs."""
     
-    mse_x = []
     mse_on = []
+    mse_x = []
+
+    if include_inactive:
+        mse_on_inactive = []
+        mse_x_inactive = []
+
     for run in runs:
-        mse_x.append((run.x - run.est_x).pow(2).mean(dim=(1, 2)).sum(dim=-1).cpu().numpy())
         mse_on.append((run.on - run.est_on).pow(2).mean(dim=(1, 2)).cpu().numpy())
+        mse_x.append((run.x - run.est_x).pow(2).mean(dim=(1, 2)).sum(dim=-1).cpu().numpy())
 
-  
-    fig = plt.figure(figsize=(10, 5))
+        if include_inactive:
+            mse_on_inactive.append((run.est_inactive_on).pow(2).mean(dim=(1, 2)).cpu().numpy())
+            mse_x_inactive.append((run.est_inactive_x).pow(2).mean(dim=(1, 2)).sum(dim=-1).cpu().numpy())
+            number_of_plots = 4
+        else:
+            number_of_plots = 2
 
-    plt.subplot(1, 2, 1)
+
+    if include_inactive:
+        fig = plt.figure(figsize=(13, 5))
+
+        plt.subplot(1, number_of_plots, 1)
+        for i, label in enumerate(labels):
+            line, = plt.plot(mse_on_inactive[i], marker='o', label=label)
+            #if expected is not None:
+                #plt.plot([expected[i][l] for l in range(L+1)], 
+                #         linestyle='--', color=line.get_color(), marker='x')
+        plt.title('Inactive Circuits On-Indicator')
+        plt.xlabel('Layer')
+        plt.ylabel('Mean Squared Error')
+        plt.grid(True)
+        plt.legend()
+
+        plt.subplot(1, number_of_plots, 2)
+        for i, label in enumerate(labels):
+            line, = plt.plot(mse_x_inactive[i], marker='o', label=label)
+            #if expected is not None:
+                #plt.plot([expected[i][l] for l in range(L+1)], 
+                #         linestyle='--', color=line.get_color(), marker='x')
+        plt.title('Inactive Circuits Rotated Vector')
+        plt.xlabel('Layer')
+        plt.ylabel('Mean Squared Error')
+        plt.grid(True)
+        plt.legend()
+    else:
+        fig = plt.figure(figsize=(10, 5))
+
+    plt.subplot(1, number_of_plots, number_of_plots - 1)
     for i, label in enumerate(labels):
         line, = plt.plot(mse_on[i], marker='o', label=label)
-        if expected is not None:
-            plt.plot([expected[i][l] for l in range(L+1)], 
-                     linestyle='--', color=line.get_color(), marker='x')
+        #if expected is not None:
+            #plt.plot([expected[i][l] for l in range(L+1)], 
+            #         linestyle='--', color=line.get_color(), marker='x')
     plt.title('Active Circuits On-Indicator')
     plt.xlabel('Layer')
     plt.ylabel('Mean Squared Error')
@@ -460,7 +536,7 @@ def plot_mse_rot(L, labels, runs, title, expected=None, y_max=None):
         plt.ylim(0, y_max) 
     plt.legend()
 
-    plt.subplot(1, 2, 2)
+    plt.subplot(1, number_of_plots, number_of_plots)
     for i, label in enumerate(labels):
         line, = plt.plot(mse_x[i], marker='o', label=label)
         if expected is not None:
@@ -472,6 +548,8 @@ def plot_mse_rot(L, labels, runs, title, expected=None, y_max=None):
     plt.grid(True)
     plt.legend()
 
+
+
     fig.suptitle(title, fontsize=16)
     plt.tight_layout()
     plt.subplots_adjust(top=0.88)  # Make room for the title
@@ -479,21 +557,124 @@ def plot_mse_rot(L, labels, runs, title, expected=None, y_max=None):
     plt.show()
 
 
-def get_inactive_circuits(active_circuits, T):
-    """
-    Given a tensor listing the active circuits for each batch, 
-    returns a tensor listing the inactive circuits for each batch.
-    """
 
-    bs, z = active_circuits.shape # bs is batch size, z is number of active circuits
 
-    all_idx = torch.arange(T).expand(bs, T)          # [bs, T]
-    mask = torch.ones(bs, T, dtype=torch.bool)       # [bs, T]
-    mask[torch.arange(bs).unsqueeze(1), active_circuits] = False
 
-    inactive_circuits = all_idx[mask].view(bs, T - z)  #[bs, T-z]
+def plot_worst_error_rot(L, labels, runs, title, expected=None, y_max=None, include_inactive=True):
+    """Plot the mean squared error for a set of runs."""
+    
+    worst_error_on = []
+    worst_error_x = []
+    
+    if include_inactive:
+        worst_error_on_inactive = []
+        worst_error_x_inactive = []
 
-    return inactive_circuits
+    for run in runs:
+        worst_error_x.append((run.x - run.est_x).norm(dim=-1).amax(dim=(1, 2)).cpu().numpy())
+        worst_error_on.append((run.on - run.est_on).abs().amax(dim=(1, 2)).cpu().numpy())
+
+        if include_inactive:
+            worst_error_on_inactive.append((run.est_inactive_on).abs().amax(dim=(1, 2)).cpu().numpy())
+            worst_error_x_inactive.append((run.est_inactive_x).norm(dim=-1).amax(dim=(1, 2)).cpu().numpy())
+            number_of_plots = 4
+        else:
+            number_of_plots = 2
+
+    
+
+    if include_inactive:
+        fig = plt.figure(figsize=(13, 5))
+
+        plt.subplot(1, number_of_plots, 1)
+        for i, label in enumerate(labels):
+            line, = plt.plot(worst_error_on_inactive[i], marker='o', label=label)
+            #if expected is not None:
+                #plt.plot([expected[i][l] for l in range(L+1)], 
+                #         linestyle='--', color=line.get_color(), marker='x')
+        plt.title('Inactive Circuits On-Indicator')
+        plt.xlabel('Layer')
+        plt.ylabel('Worst Error')
+        plt.grid(True)
+        plt.legend()
+
+        plt.subplot(1, number_of_plots, 2)
+        for i, label in enumerate(labels):
+            line, = plt.plot(worst_error_x_inactive[i], marker='o', label=label)
+            #if expected is not None:
+                #plt.plot([expected[i][l] for l in range(L+1)], 
+                #         linestyle='--', color=line.get_color(), marker='x')
+        plt.title('Inactive Circuits Rotated Vector')
+        plt.xlabel('Layer')
+        plt.ylabel('Worst Error')
+        plt.grid(True)
+        plt.legend()
+    else:
+        fig = plt.figure(figsize=(10, 5))
+
+    plt.subplot(1, number_of_plots, number_of_plots - 1)
+    for i, label in enumerate(labels):
+        line, = plt.plot(worst_error_on[i], marker='o', label=label)
+        #if expected is not None:
+            #plt.plot([expected[i][l] for l in range(L+1)], 
+            #         linestyle='--', color=line.get_color(), marker='x')
+    plt.title('Active Circuits On-Indicator')
+    plt.xlabel('Layer')
+    plt.ylabel('Worst Error')
+    plt.grid(True)
+    if y_max is not None:
+        plt.ylim(0, y_max) 
+    plt.legend()
+
+    plt.subplot(1, number_of_plots, number_of_plots)
+    for i, label in enumerate(labels):
+        line, = plt.plot(worst_error_x[i], marker='o', label=label)
+        if expected is not None:
+            plt.plot([expected[i][l] for l in range(L+1)], 
+                     linestyle='--', color=line.get_color(), marker='x')
+    plt.title('Active Circuits Rotated Vector')
+    plt.xlabel('Layer')
+    plt.ylabel('Worst Error')
+    plt.grid(True)
+    plt.legend()
+
+
+
+    fig.suptitle(title, fontsize=16)
+    plt.tight_layout()
+    plt.subplots_adjust(top=0.88)  # Make room for the title
+
+    plt.show()
+
+
+
+
+
+
+def plot_rot(run, rows=4, cols=6):
+
+    est_x = run.est_x.detach().cpu().numpy()
+    x = run.x.detach().cpu().numpy()
+
+    fig, ax = plt.subplots(rows, cols, figsize=(2*cols, 2*rows))
+    ax = ax.flatten()
+
+    for i in range(rows * cols):
+        if i < run.x.shape[1]:
+            ax[i].plot(x[:, i, 0, 0], x[:, i, 0, 1], label='True', marker='o')
+            ax[i].plot(est_x[:, i, 0, 0], est_x[:, i, 0, 1], label='Estimated', marker='x')
+            ax[i].set_xlim(-1.3, 1.3)
+            ax[i].set_ylim(-1.3, 1.3)
+            ax[i].set_aspect('equal', 'box')
+            ax[i].grid(True)
+            ax[i].set_title(f'Sample {i+1}')
+            if i == 0:
+                ax[i].legend()
+        else:
+            ax[i].axis('off')
+
+    plt.tight_layout()
+    plt.show()
 
 
 
