@@ -339,15 +339,15 @@ plt.legend()
 plt.show()
 
 #%%
-L=2
+l=2
 
-worst_impact_on_others_on = inactive_est_on[L].max(dim=0).values
-worst_impact_on_self_on   = inactive_est_on[L].max(dim=1).values
-self_error_on                   = (est_on[L].diag() - 1).abs()
+worst_impact_on_others_on = inactive_est_on[l].max(dim=0).values
+worst_impact_on_self_on   = inactive_est_on[l].max(dim=1).values
+self_error_on                   = (est_on[l].diag() - 1).abs()
 
-worst_impact_on_others_x = inactive_error_x[L].max(dim=0).values
-worst_impact_on_self_x   = inactive_error_x[L].max(dim=1).values
-self_error_x             = error_x[L].diag()
+worst_impact_on_others_x = inactive_error_x[l].max(dim=0).values
+worst_impact_on_self_x   = inactive_error_x[l].max(dim=1).values
+self_error_x             = error_x[l].diag()
 
 plt.hist(worst_impact_on_others_on, bins=30, alpha=0.5 ,label='Worst impact on others, on')
 plt.hist(worst_impact_on_self_on, bins=30, alpha=0.5 ,label='Worst impact on self, on')
@@ -372,7 +372,87 @@ plt.show()
 
 
 #%%
- 
+mask =  worst_impact_on_self_on < 0.5
+exc_T = mask.sum().item()
+exc_bs = exc_T
+active_circuits = torch.arange(exc_T).reshape(exc_T, 1)
+exclusive_run = net.run(L, z, exc_bs, active_circuits=active_circuits, capped=True)
+
+
+unemb = net.embed[:,mask,:]/S
+A = exclusive_run.A
+a = exclusive_run.a
+
+exc_est_a = torch.zeros(L+1, exc_bs, exc_T, d)
+
+for l in range(L):
+    for i in range(d):
+        exc_est_a[l+1, :, :, i] = torch.einsum('tn,bn->bt', unemb[l], A[l+1,:,i*Dod:(i+1)*Dod])
+
+exc_inactive_est_a = exc_est_a.clone()
+for l in range(1, L+1):
+    for i in range(d):
+        exc_inactive_est_a[l,:,:,i].fill_diagonal_(0)
+
+exc_est_on = exc_est_a[:,:,:,0] - exc_est_a[:,:,:,1]
+exc_inactive_est_on = exc_inactive_est_a[:,:,:,0] - exc_inactive_est_a[:,:,:,1]
+
+
+exc_est_x = exc_est_a[:,:,:,-2:] - exc_est_on[:,:,:,None]
+exc_x = torch.zeros(L+1, exc_bs, exc_T, 2)
+exc_x[:,torch.arange(exc_T),torch.arange(exc_T),:] = exclusive_run.x[:,:,0,:]
+
+error_x = (exc_est_x - exc_x).norm(dim=-1)
+exc_inactive_error_x = error_x.clone()
+exc_inactive_error_x[:,torch.arange(exc_T),torch.arange(exc_T)] = 0
+
+l=2
+exc_worst_impact_on_others_on = exc_inactive_est_on[l].max(dim=1).values
+exc_worst_impact_on_self_on   = exc_inactive_est_on[l].max(dim=0).values
+exc_self_error_on                   = (exc_est_on[l].diag() - 1).abs()
+
+exc_worst_impact_on_others_x = exc_inactive_error_x[l].max(dim=1).values
+exc_worst_impact_on_self_x   = exc_inactive_error_x[l].max(dim=0).values
+exc_self_error_x             = exc_inactive_error_x[l].diag()
+
+plt.plot(sorted(exc_worst_impact_on_others_on, reverse=True), label='Worst impact on others, on')
+plt.plot(sorted(exc_worst_impact_on_self_on, reverse=True), label='Worst impact on self, on')
+plt.plot(sorted(exc_self_error_on, reverse=True), label='Self error, on')
+plt.plot(sorted(exc_worst_impact_on_others_x, reverse=True), label='Worst impact on others, x')
+plt.plot(sorted(exc_worst_impact_on_self_x, reverse=True), label='Worst impact on self, x')
+plt.plot(sorted(exc_self_error_x, reverse=True), label='Self error, x')
+plt.grid(True)
+plt.legend()
+plt.title('With circuit exclusion')
+plt.show()
+
+#%%
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
