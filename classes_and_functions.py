@@ -122,17 +122,26 @@ class RotSmallCircuits_3d:
         
 
 
-    def run(self, L, z, bs, active_circuits=None, initial_angle=None):
+    def run(self, L, z, bs, active_circuits=None, initial_angle=None, exclude_mask=None):
         """
-        Run all active_circuits on input random inputs and return 
+        Run all active_circuits on input random or specified inputs and return 
         the activations of all layers.
         """
+
+        b = self.b
+        if exclude_mask is None:
+            T = self.T
+            w = self.w
+        else:
+            T = exclude_mask.sum().item()
+            w = self.w[exclude_mask]
+
 
         a = torch.zeros(L+1, bs, z, 3)
 
         #Active circuits
         if active_circuits is None:  # Generating random circuits
-            active_circuits = random_active_circuits(self.T, bs, z)
+            active_circuits = random_active_circuits(T, bs, z)
 
         #Initial values
         if initial_angle is None:
@@ -145,8 +154,8 @@ class RotSmallCircuits_3d:
         #Running the small circuits
         for l in range(L):
             a[l+1] = torch.relu(
-                torch.einsum('btij,btj->bti', self.w[active_circuits], a[l]) 
-                + self.b)
+                torch.einsum('btij,btj->bti', w[active_circuits], a[l]) 
+                + b)
 
         return a, active_circuits
     
@@ -366,7 +375,7 @@ class CompInSup:
         #First bias is zero, the rest are the biases of the small circuits
         B = torch.zeros(L, D)
         for i in range(d):
-            B[1:, i*Dod:(i+1)*Dod] = small_circuits.b[i]
+            B[:, i*Dod:(i+1)*Dod] = small_circuits.b[i]
 
 
         self.B = B
@@ -432,6 +441,8 @@ class CompInSup:
 
         if exclude_mask is None:
             T = self.T
+            w = self.small_circuits.w
+            embed = self.embed
             if not capped and not split:
                 W = self.W1
                 unemb = self.unemb
@@ -443,6 +454,8 @@ class CompInSup:
                 unemb = self.embed/self.S
         else:
             T, W, unemb = self.exclude_circuits(L, exclude_mask)
+            w = self.small_circuits.w[exclude_mask]
+            embed = self.embed[:,exclude_mask,:]
 
         if initial_angle is not None:
             a, active_circuits = self.small_circuits.run(L, z, bs, active_circuits, initial_angle, exclude_mask=exclude_mask)
@@ -452,7 +465,7 @@ class CompInSup:
         A = torch.zeros(L+1, bs, self.D)
         pre_A = torch.zeros(L+1, bs, self.D)
 
-        temp_A = torch.einsum('btn,bti->ibn', self.embed[0,active_circuits],a[1])
+        temp_A = torch.einsum('btn,btij,btj->ibn', embed[0,active_circuits],w[active_circuits],a[0])
         for i in range(d):
             A[0,:,i*Dod:(i+1)*Dod] = temp_A[i]
         pre_A[0] = A[0]
@@ -484,8 +497,8 @@ class CompInSup:
         run.A = A
         run.pre_A = pre_A
         run.unemb = unemb
-        run.T = self.T
-        run.Dod = self.Dod
+        run.T = T
+        run.Dod = Dod
 
         if self.is_rot:
 
