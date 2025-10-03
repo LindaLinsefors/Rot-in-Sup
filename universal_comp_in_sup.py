@@ -82,8 +82,8 @@ Dod = D // d
 
 
 bs = T
-L = 5
-S = 3
+L = 4
+S = 6
 
 b = 1
 
@@ -122,18 +122,18 @@ expected = []
 
 #for z in [1, 2, 3]:
 
-Ss = [5]
+Ss = [6]
 
 #nets = {}
 #for S in Ss:
     #nets[S] = CompInSup(D, L, S, circ, u_correction=u_correction)
 
-for z in [1,2]:    
+for z in [1,2,3]:    
     #for split, capped in [(False, False), (True, False), (True, True)]:
     for split, capped in [(True, True)]:
         for S in Ss:
-            #for w_correction in [1, 1.5, 2]:
-            for b in [0.0, 0.5, 1.0]:
+            for w_correction in [1.1, 1.15, 1.2]:
+            #for b in [0.0, 0.5, 1.0]:
 
                 circ = RotSmallCircuits(T, b, d)
                 net = CompInSup(D, L, S, circ)
@@ -145,10 +145,10 @@ for z in [1,2]:
                     labels.append(f'z={z}, split, S={S}')
                 if (split, capped) == (True, True):
                     #labels.append(f'z={z}, capped, S={S}')
-                    #labels.append(f'z={z}, w_corr={w_correction}')
-                    labels.append(f'z={z}, b={b}')
+                    labels.append(f'z={z}, w_corr={w_correction}')
+                    #labels.append(f'z={z}, b={b}')
 
-                #net = CompInSup(D, L, S, circ, w_correction=w_correction)
+                net = CompInSup(D, L, S, circ, w_correction=w_correction)
                 run = net.run(L, z, bs, 
                             #active_circuits=active_circuits, 
                             #initial_angle=initial_angle,

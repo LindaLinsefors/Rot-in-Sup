@@ -475,6 +475,11 @@ class CompInSup:
             A[l+1] = torch.relu(pre_A[l+1])
             #A[l+1] = pre_A[l+1]
 
+            if l==L-1 and self.is_rot and d==4:
+                A[1,:,2*Dod:3*Dod] = torch.einsum('btn,bt->bn', embed[0,active_circuits], (a[1,:,:,2] - 1)) + A[1,:,:Dod] - A[1,:,Dod:2*Dod]
+                A[1,:,3*Dod:4*Dod] = torch.einsum('btn,bt->bn', embed[0,active_circuits], (a[1,:,:,3] - 1)) + A[1,:,:Dod] - A[1,:,Dod:2*Dod]
+
+
         est_a = torch.zeros(L+1, bs, z, d)
         est_a[0] = a[0]
         for l in range(L):
@@ -541,11 +546,18 @@ def expected_mse_rot(T, Dod, l, b, z):
 
 
 
-def plot_mse_rot(L, labels, runs, title, expected=None, y_max=None, include_inactive=True):
+def plot_mse_rot(L, labels, runs, title, expected=None, y_max=None, include_inactive=True, colors=None, figsize=None):
     """Plot the mean squared error for a set of runs."""
     
     mse_on = []
     mse_x = []
+
+    if figsize is None:
+        if include_inactive:
+            figsize = (13, 5)
+        else:
+            figsize = (10, 5)
+    fig = plt.figure(figsize=figsize)
 
     if include_inactive:
         mse_on_inactive = []
@@ -564,63 +576,70 @@ def plot_mse_rot(L, labels, runs, title, expected=None, y_max=None, include_inac
 
 
     if include_inactive:
-        fig = plt.figure(figsize=(13, 5))
-
         plt.subplot(1, number_of_plots, 1)
         for i, label in enumerate(labels):
-            line, = plt.plot(mse_on_inactive[i], marker='o', label=label)
+            if colors is not None:
+                line, = plt.plot(mse_on_inactive[i], marker='o', label=label, color=colors[i])
+            else:
+                line, = plt.plot(mse_on_inactive[i], marker='o', label=label)
             #if expected is not None:
                 #plt.plot([expected[i][l] for l in range(L+1)], 
                 #         linestyle='--', color=line.get_color(), marker='x')
         plt.title('Inactive Circuits On-Indicator')
-        plt.xlabel('Layer')
-        plt.ylabel('Mean Squared Error')
-        plt.grid(True)
-        plt.legend()
 
-        plt.subplot(1, number_of_plots, 2)
+
+        plt.subplot(1, number_of_plots, 3)
         for i, label in enumerate(labels):
-            line, = plt.plot(mse_x_inactive[i], marker='o', label=label)
+            if colors is not None:
+                line, = plt.plot(mse_x_inactive[i], marker='o', label=label, color=colors[i])
+            else:
+                line, = plt.plot(mse_x_inactive[i], marker='o', label=label)
             #if expected is not None:
                 #plt.plot([expected[i][l] for l in range(L+1)], 
                 #         linestyle='--', color=line.get_color(), marker='x')
         plt.title('Inactive Circuits Rotated Vector')
-        plt.xlabel('Layer')
-        plt.ylabel('Mean Squared Error')
-        plt.grid(True)
-        plt.legend()
-    else:
-        fig = plt.figure(figsize=(10, 5))
 
-    plt.subplot(1, number_of_plots, number_of_plots - 1)
+
+
+    plt.subplot(1, number_of_plots, number_of_plots//2)
     for i, label in enumerate(labels):
-        line, = plt.plot(mse_on[i], marker='o', label=label)
+        if colors is not None:
+            line, = plt.plot(mse_on[i], marker='o', label=label, color=colors[i])
+        else:
+            line, = plt.plot(mse_on[i], marker='o', label=label)
         #if expected is not None:
             #plt.plot([expected[i][l] for l in range(L+1)], 
             #         linestyle='--', color=line.get_color(), marker='x')
     plt.title('Active Circuits On-Indicator')
-    plt.xlabel('Layer')
-    plt.ylabel('Mean Squared Error')
-    plt.grid(True)
-    if y_max is not None:
-        plt.ylim(0, y_max) 
-    plt.legend()
+
 
     plt.subplot(1, number_of_plots, number_of_plots)
     for i, label in enumerate(labels):
-        line, = plt.plot(mse_x[i], marker='o', label=label)
+        if colors is not None:
+            line, = plt.plot(mse_x[i], marker='o', label=label, color=colors[i])
+        else:
+            line, = plt.plot(mse_x[i], marker='o', label=label)
         if expected is not None:
             plt.plot([expected[i][l] for l in range(L+1)], 
                      linestyle='--', color=line.get_color(), marker='x')
     plt.title('Active Circuits Rotated Vector')
-    plt.xlabel('Layer')
-    plt.ylabel('Mean Squared Error')
-    plt.grid(True)
-    plt.legend()
 
 
 
-    fig.suptitle(title, fontsize=16)
+    for i in range(1, number_of_plots+1):
+        plt.subplot(1, number_of_plots, i)
+        plt.xlabel('Layer')
+        plt.ylabel('Mean Squared Error')
+        plt.grid(True)
+        plt.legend()
+        if y_max is not None:
+            plt.ylim(0, y_max) 
+        plt.xticks(torch.arange(L+1))
+
+    if title is not None:
+        #fig.suptitle(title, fontsize=16)
+        fig.text(0.5, -0.02, title, ha='center', va='bottom', fontsize=16)
+
     plt.tight_layout()
     plt.subplots_adjust(top=0.88)  # Make room for the title
 
@@ -630,9 +649,16 @@ def plot_mse_rot(L, labels, runs, title, expected=None, y_max=None, include_inac
 
 
 
-def plot_worst_error_rot(L, labels, runs, title, expected=None, y_max=None, include_inactive=True):
+def plot_worst_error_rot(L, labels, runs, title, expected=None, y_max=None, include_inactive=True, colors=None, figsize=None):
     """Plot the mean squared error for a set of runs."""
     
+    if figsize is None:
+        if include_inactive:
+            figsize = (13, 5)
+        else:
+            figsize = (10, 5)
+    fig = plt.figure(figsize=figsize)
+
     worst_error_on = []
     worst_error_x = []
     
@@ -654,63 +680,66 @@ def plot_worst_error_rot(L, labels, runs, title, expected=None, y_max=None, incl
     
 
     if include_inactive:
-        fig = plt.figure(figsize=(13, 5))
-
         plt.subplot(1, number_of_plots, 1)
         for i, label in enumerate(labels):
-            line, = plt.plot(worst_error_on_inactive[i], marker='o', label=label)
+            if colors is not None:
+                line, = plt.plot(worst_error_on_inactive[i], marker='o', label=label, color=colors[i])
+            else:
+                line, = plt.plot(worst_error_on_inactive[i], marker='o', label=label)
             #if expected is not None:
                 #plt.plot([expected[i][l] for l in range(L+1)], 
                 #         linestyle='--', color=line.get_color(), marker='x')
         plt.title('Inactive Circuits On-Indicator')
-        plt.xlabel('Layer')
-        plt.ylabel('Worst Error')
-        plt.grid(True)
-        plt.legend()
 
-        plt.subplot(1, number_of_plots, 2)
+
+        plt.subplot(1, number_of_plots, 3)
         for i, label in enumerate(labels):
-            line, = plt.plot(worst_error_x_inactive[i], marker='o', label=label)
+            if colors is not None:
+                line, = plt.plot(worst_error_x_inactive[i], marker='o', label=label, color=colors[i])
+            else:
+                line, = plt.plot(worst_error_x_inactive[i], marker='o', label=label)
             #if expected is not None:
                 #plt.plot([expected[i][l] for l in range(L+1)], 
                 #         linestyle='--', color=line.get_color(), marker='x')
         plt.title('Inactive Circuits Rotated Vector')
-        plt.xlabel('Layer')
-        plt.ylabel('Worst Error')
-        plt.grid(True)
-        plt.legend()
-    else:
-        fig = plt.figure(figsize=(10, 5))
 
-    plt.subplot(1, number_of_plots, number_of_plots - 1)
+
+    plt.subplot(1, number_of_plots, number_of_plots//2)
     for i, label in enumerate(labels):
-        line, = plt.plot(worst_error_on[i], marker='o', label=label)
+        if colors is not None:
+            line, = plt.plot(worst_error_on[i], marker='o', label=label, color=colors[i])
+        else:
+            line, = plt.plot(worst_error_on[i], marker='o', label=label)
         #if expected is not None:
             #plt.plot([expected[i][l] for l in range(L+1)], 
             #         linestyle='--', color=line.get_color(), marker='x')
     plt.title('Active Circuits On-Indicator')
-    plt.xlabel('Layer')
-    plt.ylabel('Worst Error')
-    plt.grid(True)
-    if y_max is not None:
-        plt.ylim(0, y_max) 
-    plt.legend()
 
     plt.subplot(1, number_of_plots, number_of_plots)
     for i, label in enumerate(labels):
-        line, = plt.plot(worst_error_x[i], marker='o', label=label)
+        if colors is not None:
+            line, = plt.plot(worst_error_x[i], marker='o', label=label, color=colors[i])
+        else:
+            line, = plt.plot(worst_error_x[i], marker='o', label=label)
         if expected is not None:
             plt.plot([expected[i][l] for l in range(L+1)], 
                      linestyle='--', color=line.get_color(), marker='x')
     plt.title('Active Circuits Rotated Vector')
-    plt.xlabel('Layer')
-    plt.ylabel('Worst Error')
-    plt.grid(True)
-    plt.legend()
 
 
+    for i in range(1, number_of_plots+1):
+        plt.subplot(1, number_of_plots, i)
+        plt.xlabel('Layer')
+        plt.ylabel('Worst Case Absolute Error')
+        plt.grid(True)
+        plt.legend()
+        if y_max is not None:
+            plt.ylim(0, y_max) 
+        plt.xticks(torch.arange(L+1))
 
-    fig.suptitle(title, fontsize=16)
+    if title is not None:
+        #fig.suptitle(title, fontsize=16)
+        fig.text(0.5, -0.02, title, ha='center', va='bottom', fontsize=16)
     plt.tight_layout()
     plt.subplots_adjust(top=0.88)  # Make room for the title
 
@@ -721,18 +750,22 @@ def plot_worst_error_rot(L, labels, runs, title, expected=None, y_max=None, incl
 
 
 
-def plot_rot(run, rows=4, cols=6):
+def plot_rot(run, rows=4, cols=6, title=None, colors=None):
 
     est_x = run.est_x.detach().cpu().numpy()
     x = run.x.detach().cpu().numpy()
 
-    fig, ax = plt.subplots(rows, cols, figsize=(2*cols, 2*rows))
+    fig, ax = plt.subplots(rows, cols, figsize=(1.8*cols, 2*rows+0.3))
     ax = ax.flatten()
 
     for i in range(rows * cols):
         if i < run.x.shape[1]:
-            ax[i].plot(x[:, i, 0, 0], x[:, i, 0, 1], label='True', marker='o')
-            ax[i].plot(est_x[:, i, 0, 0], est_x[:, i, 0, 1], label='Estimated', marker='x')
+            if colors is not None:
+                ax[i].plot(x[:, i, 0, 0], x[:, i, 0, 1], label='True', marker='o', color=colors[0])
+                ax[i].plot(est_x[:, i, 0, 0], est_x[:, i, 0, 1], label='Estimated', marker='x', color=colors[1])
+            else:
+                ax[i].plot(x[:, i, 0, 0], x[:, i, 0, 1], label='True', marker='o')
+                ax[i].plot(est_x[:, i, 0, 0], est_x[:, i, 0, 1], label='Estimated', marker='x')
             ax[i].set_xlim(-1.3, 1.3)
             ax[i].set_ylim(-1.3, 1.3)
             ax[i].set_aspect('equal', 'box')
@@ -742,6 +775,12 @@ def plot_rot(run, rows=4, cols=6):
                 ax[i].legend()
         else:
             ax[i].axis('off')
+
+    if title is not None:
+        #fig.suptitle(title, fontsize=16)
+        #plt.subplots_adjust(top=0.88)  # Make room for the title
+        fig.text(0.5, -0.01, title, ha='center', va='bottom', fontsize=16)
+
 
     plt.tight_layout()
     plt.show()

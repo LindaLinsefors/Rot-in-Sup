@@ -213,6 +213,7 @@ class IdealCompInSup:
         B = self.B
         d = self.d
         is_rot = self.is_rot
+        w = self.small_circuits.w
 
         a, active_circuits = self.small_circuits.run(L, z, bs)
         if is_rot:
@@ -222,7 +223,7 @@ class IdealCompInSup:
         pre_A = torch.zeros(L+1, bs, d*Dod)
         no_msk_A = torch.zeros(L+1, bs, d*Dod)
 
-        temp_A = torch.einsum('btn,bti->ibn', embed[0, active_circuits], a[1])
+        temp_A = torch.einsum('btn,btij,btj->ibn', embed[0, active_circuits], w[active_circuits],  a[0])
         for i in range(d):
             A[0,:,i*Dod:(i+1)*Dod] = temp_A[i]
         pre_A[0] = A[0]
