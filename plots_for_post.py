@@ -324,11 +324,14 @@ DTs = [(800, 200), (800, 300),
        (2000, 200), (2000, 400), (2000, 600), (2000, 800), (2000, 1000), (2000, 1200), (2000, 1400), (2000, 1600), (2000, 1800), (2000, 2000),
        ]
 
-L = 3
+L = 4
 S = 6
 bs = 500
 
-w_correction = None #1.15
+w_correction = 0 
+ideal = True
+large = False
+print(f'Using w_correction={w_correction}, ideal={ideal}, large={large}')
 
 DT_z_runs = {}
 mse_on = {}
@@ -336,17 +339,19 @@ mse_x = {}
 mse_on_inactive = {}
 mse_x_inactive = {}
 
-for z in [1, 2, 3]:
+for z in [1, 2, 3, 4]:
     print (f'Generating runs for z={z}...')
     DT_z_runs[z] = []
     for D, T in DTs:
         circ = RotSmallCircuits_4d(T, b=1)
         net = CompInSup(D, L, S, circ, w_correction=w_correction)
 
-        if z==1:
-            run = net.run(L, z=z, bs=500, capped=True, active_circuits=torch.arange(T).reshape(T,1))
+        if z == 1 and large:
+            net.run(L, z=z, bs=T, active_circuits = torch.arange(T).reshape(T,1))
+        if z > 1 and large:
+            net.run(L, z=z, bs=T*100)
         else:
-            run = net.run(L, z=z, bs=500, capped=True)
+            run = net.run(L, z=z, bs=500, capped=True, ideal=ideal)
 
         DT_z_runs[z].append(run)
 
@@ -362,57 +367,8 @@ for z in [1, 2, 3]:
         mse_on_inactive[z].append((run.est_inactive_on).pow(2).mean(dim=(1, 2)))
         mse_x_inactive[z].append((run.est_inactive_x).pow(2).mean(dim=(1, 2)).sum(dim=-1))
 
-# %%
-# Rotated Vector, Active circuits (out-dated)
-
-import matplotlib.patches as mpatches
-from matplotlib.lines import Line2D
-
-#D_colors = {700:'C0', 800:'C1', 900:'C2', 1000:'C3', 1100:'C4', 1200:'C5', 1300:'C6', 1400:'C7', 1500:'C8'} 
-D_colors = {800:'C0', 1000:'C1', 1200:'C2', 1400:'C3', 1600:'C4', 1800:'C5', 2000:'C6'}
-Ds = sorted(list(set([D for D, T in DTs])))
-
-figsize=(4, 3)
-legend_handles = [mpatches.Patch(color=D_colors[D], label=f'D={D}') for D in D_colors] + \
-                 [Line2D([0], [0], marker='o', linestyle='None', color='k', label=r'$T>D/d$'),
-                  Line2D([0], [0], marker='x', linestyle='None', color='k', label=r'$T\leq D/d$')]
-
-legend_handles_active = [Line2D([0], [0], color='k', linestyle='--', 
-                                label=r'MSE = $(l-1)zT\left(\dfrac{d}{D}\right)^2$')] + legend_handles
-
-fig = plt.figure(figsize=(7,6))
-for l in range(2, L+1):
-    for a_type in ['on', 'x']:
-        if a_type == 'on':
-            plt.subplot(L-1, 2, 2*l - 3)
-            plt.title(f'On-Indicator, Layer {l}', fontsize=11)
-            mse = mse_on
-        else:
-            plt.subplot(L-1, 2, 2*l - 2)
-            plt.title(f'Rotated Vector, Layer {l}', fontsize=11)
-            mse = mse_x
-
-        plt.axline((0, 0), slope=(l-1)*z, color='black', linestyle='--', linewidth=1)
-        for j, (D, T) in enumerate(DTs):
-            if T > D/d:
-                marker = 'o'
-            else:
-                marker = 'x'
-            plt.plot(T*(d/D)**2, mse[j][l], marker=marker, linestyle='None', color=D_colors[D])
-            
-        plt.grid(True)
-        plt.xlabel(r'$T\left(\dfrac{d}{D}\right)^2$')
-        plt.ylabel('MSE')
-
-        if l==2 and a_type=='on':
-            plt.ylim(plt.xlim())
 
 
-fig.legend(handles = legend_handles_active, bbox_to_anchor=(1.05, 0.95), loc='upper left', borderaxespad=0.)
-fig.suptitle(f'Active Circuits, z={z}', fontsize=16)
-
-plt.tight_layout()
-plt.show()
 
 
 # %% Plot MSE for various D and T
@@ -427,18 +383,23 @@ Ds = sorted(list(set([D for D, T in DTs])))
 
 figsize=(4, 3)
 legend_handles = [mpatches.Patch(color=D_colors[D], label=f'D={D}') for D in D_colors] + \
-                 [Line2D([0], [0], marker='o', linestyle='None', color='k', label=r'$T>D/d$'),
-                  Line2D([0], [0], marker='x', linestyle='None', color='k', label=r'$T\leq D/d$')]
+                 [Line2D([0], [0], marker='o', linestyle='None', color='gray', label=r'$T>D/d$'),
+                  Line2D([0], [0], marker='x', linestyle='None', color='gray', label=r'$T\leq D/d$')]
 
-legend_handles_active = [Line2D([0], [0], color='k', linestyle='--', 
-                                label=r'MSE = $(l-1)zT\left(\dfrac{d}{D}\right)^2$')] + legend_handles
+legend_handles_inactive = legend_handles + [Line2D([0], [0], color='gray', linestyle=':', label=r'MSE = $z\dfrac{d}{D}$')]
+
+legend_handles_active = legend_handles + [Line2D([0], [0], color='gray', linestyle=':', label=r'MSE = $9(z-1)\dfrac{d}{D}$'),
+                                          Line2D([0], [0], color='black', linestyle='--', 
+                                                 label=r'MSE = $(l-1)\left( z+2^{4}(z-1)\right) T\left(\dfrac{d}{D}\right)^2$')]
+
+legend_handles_active_z1 = legend_handles + [Line2D([0], [0], color='black', linestyle='--', label=r'MSE = $(l-1)zT\left(\dfrac{d}{D}\right)^2$')]
 
 
 
 d=4
 l0 = 1
 for active in [True, False]:
-    for z in [1, 2, 3]:
+    for z in [1,2,3, 4]:
 
         fig = plt.figure(figsize=(7, 3*(L-l0+1)))
         for l in range(l0, L+1):
@@ -460,40 +421,168 @@ for active in [True, False]:
                     else:
                         mse = mse_x_inactive[z]
 
-                if l==1:
-                    if active:
+                if active:
+                    if l==1:
                         if z>1 and a_type=='x':
                             for D in Ds:
-                                plt.axhline(y=(z-1)*d/D, color=D_colors[D], linestyle=':', linewidth=1)
+                                plt.axhline(y=9*(z-1)*d/D, color=D_colors[D], linestyle=':', linewidth=1)
                     else:
-                        for D in Ds:
-                            plt.axhline(y=z*d/D, color=D_colors[D], linestyle=':', linewidth=1)
+                        if z>1 and a_type=='x':
+                            plt.axline((0, 0), slope=(l-1)*(z + 2**4*(z-1)), color='black', linestyle='--', linewidth=1)
+                        elif z==1 and a_type=='x':
+                            plt.axline((0, 0), slope=(l-1)*z, color='black', linestyle='--', linewidth=1)
+
                 else:
-                    plt.axline((0, 0), slope=(l-1)*z, color='black', linestyle='--', linewidth=1)
+                    for D in Ds:
+                        plt.axhline(y=z*d/D, color=D_colors[D], linestyle=':', linewidth=1)
+                
 
                 for j, (D, T) in enumerate(DTs):
                     if T > D/d:
                         marker = 'o'
                     else:
                         marker = 'x'
-                    plt.plot(T*(d/D)**2, mse[j][l], marker=marker, linestyle='None', color=D_colors[D])
+                    if T*(d/D)**2 < 0.005 or True:
+                        plt.plot(T*(d/D)**2, mse[j][l], marker=marker, linestyle='None', color=D_colors[D])
                     
                 plt.grid(True)
                 plt.xlabel(r'$T\left(\dfrac{d}{D}\right)^2$')
                 plt.ylabel('MSE')
                 plt.plot([0], [0], linestyle='None')
 
-                if plt.ylim()[1] < plt.xlim()[1] or (z==1 and active and l<3):
+                if plt.ylim()[1] < plt.xlim()[1] or ((z==1 and active and l<3) and not ideal):
                     plt.ylim(plt.xlim())
                         
                         
 
-        fig.legend(handles = legend_handles_active, bbox_to_anchor=(1.05, 0.95), loc='upper left', borderaxespad=0.)
+        
         if active:
-            fig.suptitle(f'Active Circuits, S={S}, z={z}', fontsize=16)
-        else:
-            fig.suptitle(f'Inactive Circuits, S={S}, z={z}', fontsize=16)
+            if w_correction is None:
+                fig.suptitle(f'Active Circuits, S={S}, z={z}', fontsize=16)
+            else:
+                fig.suptitle(f'Active Circuits, S={S}, z={z}, '+r'$\chi \leftarrow$' + f'{w_correction}' + r'$\chi$', fontsize=16)
 
+
+            if z==1:
+                handles = legend_handles_active_z1
+            else:
+                handles = legend_handles_active
+        else:
+            if w_correction is None:
+                fig.suptitle(f'Inactive Circuits, S={S}, z={z}', fontsize=16)
+            else:
+                fig.suptitle(f'Inactive Circuits, S={S}, z={z}, '+r'$\chi \leftarrow$' + f'{w_correction}' + r'$\chi$', fontsize=16)
+            handles = legend_handles_inactive
+
+        fig.legend(handles = handles, bbox_to_anchor=(1.05, 0.95), loc='upper left', borderaxespad=0.)
+        plt.tight_layout()
+        plt.show()
+# %%
+
+
+
+import matplotlib.patches as mpatches
+from matplotlib.lines import Line2D
+
+#D_colors = {700:'C0', 800:'C1', 900:'C2', 1000:'C3', 1100:'C4', 1200:'C5', 1300:'C6', 1400:'C7', 1500:'C8'} 
+D_colors = {800:'C0', 1000:'C1', 1200:'C2', 1400:'C3', 1600:'C4', 1800:'C5', 2000:'C6'}
+Ds = sorted(list(set([D for D, T in DTs])))
+
+
+
+d=4
+active = True
+
+a_type = 'on'
+l0 = 1
+
+L = 4
+z_max = 4
+for active in [True, False]:
+    for a_type in ['on', 'x']:
+
+        fig = plt.figure(figsize=(12,12))
+
+        for l in range(l0, L+1):
+            for z in range(1, z_max+1):
+
+                if a_type == 'on':
+                    if active:
+                        mse = mse_on[z]
+                    else:
+                        mse = mse_on_inactive[z]
+                else:
+                    if active:
+                        mse = mse_x[z]
+                    else:
+                        mse = mse_x_inactive[z]
+
+                plt.subplot(L-l0+1, z_max, 1 + (l-l0)*z_max + (z-1))
+                plt.title(f'Layer {l}, z={z}', fontsize=11)
+
+
+
+                if active:
+                    if a_type=='x':
+                        if l==1:
+                            if z>1:
+                                for D in Ds:
+                                    plt.axhline(y=9*(z-1)*d/D, color=D_colors[D], linestyle=':', linewidth=1)
+                        else:
+                            plt.axline((0, 0), slope=(l-1)*(z + 2**4*(z-1)), color='black', linestyle='--', linewidth=1)
+
+                else:
+                    for D in Ds:
+                        plt.axhline(y=z*d/D, color=D_colors[D], linestyle=':', linewidth=1)
+                
+
+                for j, (D, T) in enumerate(DTs):
+                    if T > D/d:
+                        marker = 'o'
+                    else:
+                        marker = 'x'
+                    if T*(d/D)**2 < 0.006 or True:
+                        plt.plot(T*(d/D)**2, mse[j][l], marker=marker, linestyle='None', color=D_colors[D])
+                    
+                plt.grid(True)
+                plt.xlabel(r'$T\left(\dfrac{d}{D}\right)^2$')
+                plt.ylabel('MSE')
+                plt.plot([0], [0], linestyle='None')
+
+                if plt.ylim()[1] < plt.xlim()[1] or ((z==1 and active and l<3) and not ideal):
+                    plt.ylim(plt.xlim())
+                        
+        handles = [mpatches.Patch(color=D_colors[D], label=f'D={D}') for D in D_colors] + \
+                    [Line2D([0], [0], marker='o', linestyle='None', color='gray', label=r'$T>D/d$'),
+                    Line2D([0], [0], marker='x', linestyle='None', color='gray', label=r'$T\leq D/d$')]                        
+
+        if active and a_type=='x':
+            title = f'Active Circuits, Rotated Vector, S={S}'
+            handles += [Line2D([0], [0], color='gray', linestyle=':', label=r'MSE = $9(z-1)\dfrac{d}{D}$'),
+                        Line2D([0], [0], color='black', linestyle='--', 
+                            label=r'MSE = $(l-1)\left( z+2^{4}(z-1)\right) T\left(\dfrac{d}{D}\right)^2$')]
+        elif active and a_type=='on':
+            title = f'Active Circuits, On-Indicator, S={S}'
+            
+        elif not active and a_type=='on':
+            title = f'Inactive Circuits, On-Indicator, S={S}'
+            handles += [Line2D([0], [0], color='gray', linestyle=':', label=r'MSE = $z\dfrac{d}{D}$')]
+
+        else:
+            title = f'Inactive Circuits, Rotated Vector, S={S}'
+            handles += [Line2D([0], [0], color='gray', linestyle=':', label=r'MSE = $z\dfrac{d}{D}$')]
+                
+
+        if ideal:
+            title += ', Ideal'
+        if w_correction is not None:
+            title += ', ' + r'$\chi \leftarrow$' + f'{w_correction}' + r'$\chi$'
+
+        fig.suptitle(title, fontsize=16)
+
+
+
+        fig.legend(handles = handles, bbox_to_anchor=(1.01, 0.95), loc='upper left', borderaxespad=0.)
         plt.tight_layout()
         plt.show()
 # %%

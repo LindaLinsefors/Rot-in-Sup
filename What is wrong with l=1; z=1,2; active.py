@@ -52,9 +52,37 @@ run = net.run(L, z=z, bs=5, capped=True)
 print(run.est_x[1]-run.x[1])
 
 # %%
-bs=T
+bs= T * 10
 run = net.run(L, z=z, bs=bs, capped=True)
-(run.est_x[1]-run.x[1]).pow(2).sum(-1).mean()
+se = (run.est_x[1]-run.x[1]).pow(2).sum(-1)
+# %%
+print('MSE:', se.mean())
+
+# %%
+print('measured frequency:', (se>0.001).float().mean().item())
+print('expected frequency:', S**2*d/D)
+
+# %%
+print('measured MSE for errors only:',se[se>0.001] .mean().item())
+print('expected MSE for errors only:', 3/S**2)
+
+
+# %%
+run.est_x[1].shape
+
+# %%
+mask = (se>0.001)[:,0]
+est_x = run.est_x[1, mask][0]
+x = run.x[1, mask][0]
+A0 = run.A[1, mask][0][:Dod]
+A1 = run.A[1, mask][0][Dod:2*Dod]
+A2 = run.A[1, mask][0][2*Dod:3*Dod]
+A3 = run.A[1, mask][0][3*Dod:4*Dod]
+
+
+
+
+
 # %%
 unemb = net.embed/S
 active_circuits = run.active_circuits
@@ -67,6 +95,57 @@ for i in range (d):
 
 est_a_1 = est_a_1[:,:,0] - est_a_1[:,:,1]
 print((est_a_1).mean())
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

@@ -433,7 +433,7 @@ class CompInSup:
 
 
     def run(self, L, z, bs, active_circuits=None, initial_angle=None, 
-            capped=True, split=False, exclude_mask=None):
+            capped=True, split=False, exclude_mask=None, ideal=False):
 
         d = self.small_circuits.d # Number of neurons in each small circuit
         B = self.B # Biases for each layer
@@ -472,10 +472,14 @@ class CompInSup:
 
         for l in range(L):
             pre_A[l+1] = torch.einsum('nm,bm->bn', W[l], A[l]) + B[l]
-            A[l+1] = torch.relu(pre_A[l+1])
-            #A[l+1] = pre_A[l+1]
+            if not ideal:
+                A[l+1] = torch.relu(pre_A[l+1])
+            else:
+                mask = torch.einsum('btn->bn', embed[l,active_circuits]) > 0
+                for i in range(d):
+                    A[l+1,:,i*Dod:(i+1)*Dod][mask] = pre_A[l+1, :, i*Dod:(i+1)*Dod][mask]
 
-            if l==L-1 and self.is_rot and d==4:
+            if l==L-1 and self.is_rot and d==4 and False:
                 A[1,:,2*Dod:3*Dod] = torch.einsum('btn,bt->bn', embed[0,active_circuits], (a[1,:,:,2] - 1)) + A[1,:,:Dod] - A[1,:,Dod:2*Dod]
                 A[1,:,3*Dod:4*Dod] = torch.einsum('btn,bt->bn', embed[0,active_circuits], (a[1,:,:,3] - 1)) + A[1,:,:Dod] - A[1,:,Dod:2*Dod]
 

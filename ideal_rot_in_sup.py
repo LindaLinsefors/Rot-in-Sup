@@ -47,7 +47,9 @@ from classes_and_functions import (RunData,
                                    expected_mse_rot, 
                                    get_inactive_circuits)
 
-from classes_and_functions import RotSmallCircuits_3d, RotSmallCircuits_4d
+from classes_and_functions import (RotSmallCircuits_3d, 
+                                   RotSmallCircuits_4d, 
+                                   RotSmallCircuits)
 
 
 # Fake import of RunData
@@ -166,6 +168,8 @@ class IdealCompInSup:
         w = self.w
         d = self.d
 
+        D = d * Dod
+
         embed = torch.zeros(L, T, Dod)
         unemb = torch.zeros(L, T, Dod)
         assign = torch.zeros(L, T, S, dtype=torch.int64)
@@ -193,7 +197,7 @@ class IdealCompInSup:
 
         B = torch.zeros(L, D, device=device)
         for i in range(d):
-            B[1:, i*Dod:(i+1)*Dod] = small_circuits.b[i]
+            B[:, i*Dod:(i+1)*Dod] = small_circuits.b[i]
 
         self.embed = embed
         self.unemb = unemb
