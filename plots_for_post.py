@@ -94,8 +94,8 @@ from classes_and_functions import plot_mse_rot, plot_worst_error_rot
 
 colors = ['orange', 'red', 'purple']
 plot_mse_rot(        L, normal_labels, normal_runs, title=None, colors=colors, figsize=(11,4))
-plot_worst_error_rot(L, normal_labels, normal_runs, title=f'D={D}, D/d={Dod}, T={T}, S={S}', colors=colors, figsize=(11,4))
-
+plot_worst_error_rot(L, normal_labels, normal_runs, title=None, colors=colors, figsize=(11,4))
+#title=f'D={D}, D/d={Dod}, T={T}, S={S}'
 
 
 # %%
@@ -205,15 +205,15 @@ plt.show()
 fig = plt.figure(figsize=(11,4))
 epsilon = 1e-4
 
-for j, run in enumerate(runs):
+for j, run in enumerate(normal_runs):
     for i in range(4):
         A = run.A[:,:,i*Dod:(i+1)*Dod]  # (L, bs, D) -> (L, bs, Dod)
         #A = run.A[:,0,i*Dod:(i+1)*Dod]  # (L, bs, D) -> (L, bs, Dod)
 
         z=3-j
         plt.subplot(1, 4, i+1)
-        plt.plot((A>epsilon).float().mean(dim=(1,2)), 'o-', label=labels[j], color=colors[j])
-        #plt.plot((A>epsilon).float().mean(dim=(1,)), 'o-', label=labels[j], color=colors[j])
+        plt.plot((A>epsilon).float().mean(dim=(1,2)), 'o-', label=normal_labels[j], color=colors[j])
+        #plt.plot((A>epsilon).float().mean(dim=(1,)), 'o-', label=normal_labels[j], color=colors[j])
 
 
         if z==1:
@@ -328,8 +328,8 @@ L = 4
 S = 6
 bs = 500
 
-w_correction = 0 
-ideal = True
+w_correction = None
+ideal = False
 large = False
 print(f'Using w_correction={w_correction}, ideal={ideal}, large={large}')
 
@@ -478,7 +478,7 @@ for active in [True, False]:
         plt.tight_layout()
         plt.show()
 # %%
-
+#Ploting MSE for various D and T, all z and l in one figure
 
 
 import matplotlib.patches as mpatches
@@ -498,8 +498,8 @@ l0 = 1
 
 L = 4
 z_max = 4
-for active in [True, False]:
-    for a_type in ['on', 'x']:
+for active in [True]:  #[True, False]:
+    for a_type in ['x']:  #['on', 'x']:
 
         fig = plt.figure(figsize=(12,12))
 
@@ -522,18 +522,7 @@ for active in [True, False]:
 
 
 
-                if active:
-                    if a_type=='x':
-                        if l==1:
-                            if z>1:
-                                for D in Ds:
-                                    plt.axhline(y=9*(z-1)*d/D, color=D_colors[D], linestyle=':', linewidth=1)
-                        else:
-                            plt.axline((0, 0), slope=(l-1)*(z + 2**4*(z-1)), color='black', linestyle='--', linewidth=1)
 
-                else:
-                    for D in Ds:
-                        plt.axhline(y=z*d/D, color=D_colors[D], linestyle=':', linewidth=1)
                 
 
                 for j, (D, T) in enumerate(DTs):
@@ -543,7 +532,39 @@ for active in [True, False]:
                         marker = 'x'
                     if T*(d/D)**2 < 0.006 or True:
                         plt.plot(T*(d/D)**2, mse[j][l], marker=marker, linestyle='None', color=D_colors[D])
-                    
+                        #x = T*(d/D)**2 * z * (l-1) + (d/D) * (z-1) * l + T*8*(d/D)**2 * (z-1) * (l-1) + 8*(d/D) * (z-1) * l
+                        #x = T*(d/D)**2 * z * (l-1) + T*8*(d/D)**2 * (z-1) * (l-1) 
+
+                        #x = (l-1)*(z + 16*(z-1)) * T*(d/D)**2
+                        #plt.plot(x, mse[j][l], marker=marker, linestyle='None', color=D_colors[D])
+
+                ylim = plt.ylim()
+                xlim = plt.xlim()
+                plt.autoscale(enable=False) 
+                plt.ylim(ylim)
+                plt.xlim(xlim)
+
+                if active:
+                    if a_type=='x':
+                        '''
+                        if l==1:
+                            if z>1:
+                                for D in Ds:
+                                    plt.axhline(y=9*(z-1)*d/D, color=D_colors[D], linestyle=':', linewidth=1)
+                        else:
+                            plt.axline((0, 0), slope=(l-1)*(z + 16*(z-1)), color='black', linestyle='--', linewidth=1)
+                            #plt.axline((0, 0), slope=1, color='black', linestyle='--', linewidth=1)
+                        '''
+                        for D in Ds:
+                            T = torch.arange(100, 2000, 10)
+                            x = T*(d/D)**2
+                            y = T*(d/D-1/(S*T))**2 * z * (l-1) + (d/D-1/(S*T)) * (z-1) * l + T*8*(d/D-1/(S*T))**2 * (z-1) * (l-1) + 8*(d/D-1/(S*T)) * (z-1) * l
+                            line,  = plt.plot(x, y, color=D_colors[D], linestyle='--', linewidth=1, scalex=False, scaley=False)
+                else:
+                    for D in Ds:
+                        plt.axhline(y=z*d/D, color=D_colors[D], linestyle=':', linewidth=1)
+
+
                 plt.grid(True)
                 plt.xlabel(r'$T\left(\dfrac{d}{D}\right)^2$')
                 plt.ylabel('MSE')
@@ -560,7 +581,7 @@ for active in [True, False]:
             title = f'Active Circuits, Rotated Vector, S={S}'
             handles += [Line2D([0], [0], color='gray', linestyle=':', label=r'MSE = $9(z-1)\dfrac{d}{D}$'),
                         Line2D([0], [0], color='black', linestyle='--', 
-                            label=r'MSE = $(l-1)\left( z+2^{4}(z-1)\right) T\left(\dfrac{d}{D}\right)^2$')]
+                            label=r'MSE = $(l-1)\left( z+16(z-1)\right) T\left(\dfrac{d}{D}\right)^2$')]
         elif active and a_type=='on':
             title = f'Active Circuits, On-Indicator, S={S}'
             
