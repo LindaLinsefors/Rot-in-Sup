@@ -538,6 +538,8 @@ for active in [True]:  #[True, False]:
                         #x = (l-1)*(z + 16*(z-1)) * T*(d/D)**2
                         #plt.plot(x, mse[j][l], marker=marker, linestyle='None', color=D_colors[D])
 
+                # Preserve axis limits when adding lines
+                plt.plot([0], [0], linestyle='None')
                 ylim = plt.ylim()
                 xlim = plt.xlim()
                 plt.autoscale(enable=False) 
@@ -558,8 +560,11 @@ for active in [True]:  #[True, False]:
                         for D in Ds:
                             T = torch.arange(100, 2000, 10)
                             x = T*(d/D)**2
-                            y = T*(d/D-1/(S*T))**2 * z * (l-1) + (d/D-1/(S*T)) * (z-1) * l + T*8*(d/D-1/(S*T))**2 * (z-1) * (l-1) + 8*(d/D-1/(S*T)) * (z-1) * l
+                            #y = T*(d/D-1/(S*T))**2 * z * (l-1) + (d/D-1/(S*T)) * (z-1) * l + T*8*(d/D-1/(S*T))**2 * (z-1) * (l-1) + 8*(d/D-1/(S*T)) * (z-1) * l
+                            y = (l-1)*T*(d/D-1/(S*T))**2*(z + (z-1)*8) + l*(d/D-1/(S*T))*(z-1)*9
                             line,  = plt.plot(x, y, color=D_colors[D], linestyle='--', linewidth=1, scalex=False, scaley=False)
+                        if l>1:
+                            plt.axline((0, 0), slope=(l-1)*(z + 16*(z-1)), color='black', linestyle='--', linewidth=1)
                 else:
                     for D in Ds:
                         plt.axhline(y=z*d/D, color=D_colors[D], linestyle=':', linewidth=1)

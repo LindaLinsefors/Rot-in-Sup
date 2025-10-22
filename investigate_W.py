@@ -139,7 +139,7 @@ print(rot_transmission[above_diag].pow(2).mean().item())
 emb_emb = torch.einsum('tn,un->tu', embed[l],embed[l])/S
 print(emb_emb[:5,:5])
 print(emb_emb[above_diag].pow(2).mean().item())
-print(d/)
+
 
 # %%
 emb_4 = torch.einsum('tn,un,um,vm->tv', embed[l], embed[l], embed[l-1], embed[l-1])
@@ -241,7 +241,7 @@ L = 2
 d = 4
 
 #%%
-
+'''
 mask_T = {}
 for T in [200,300,400,500]:
     mask_T[T] = torch.ones(T,T,T)
@@ -250,16 +250,21 @@ for T in [200,300,400,500]:
             for k in range(T):
                 if i==j or j==k:
                     mask_T[T][i,j,k] = 0
+'''
 
 #
 #%%
 # Generate capped data
 capped_data = {}
+capped_data_variant = {}
+capped_data_variant_2 = {}
 Ds = {}
 Ts = {}
 
 for S in [1,2,3,4,5,6,7,8,9,10]:
     capped_data[S] = {'x':[], 'y':[]}
+    capped_data_variant[S] = {'x':[], 'y':[]}
+    capped_data_variant_2[S] = {'x':[], 'y':[]}
     Ds[S] = []
     Ts[S] = []
 
@@ -288,11 +293,27 @@ for S in [1,2,3,4,5,6,7,8,9,10]:
 
         capped_embed -= (torch.ones_like(capped_embed) - capped_embed) * capped_corr_1
 
-        y = (torch.einsum('tn,nm,um->tu', embed[l], capped_embed, embed[l-1])[above_diag]/S**2).pow(2).mean()
-        x = T*(d/D)**2
-        
+        W = capped_embed/S
+
+        a = torch.einsum('tn,nm,vm->tv', embed[l], W, embed[l-1])/S
+        b = torch.einsum('tn,vn->tv', embed[l], embed[l])/S 
+        c = torch.einsum('tm,vm->tv', embed[l-1], embed[l-1])/S
+
+        y = a[above_diag].pow(2).mean()
+        x = T*(d/D-1/(S*T))**2 + 2*(d/D - 1/(S*T))
+
         capped_data[S]['x'].append(x)
         capped_data[S]['y'].append(y)
+
+        y = (a-b-c)[above_diag].pow(2).mean()
+        x = T*(d/D-1/(S*T))**2
+        capped_data_variant[S]['x'].append(x)
+        capped_data_variant[S]['y'].append(y)
+
+        y = (a-c)[above_diag].pow(2).mean()
+        x = T*(d/D-1/(S*T))**2 + (d/D - 1/(S*T))
+        capped_data_variant_2[S]['x'].append(x)
+        capped_data_variant_2[S]['y'].append(y)
 
 # %%
 # plot capped data
@@ -302,12 +323,34 @@ for S in [1,2,3,4,5,6,7,8,9,10]:
     x = [T*(d/D - 1/(S*T))**2 + 2*(d/D - 1/(S*T)) for D, T in zip(Ds[S], Ts[S])]
     plt.scatter(x, capped_data[S]['y'], label='S='+str(S), color=S_colors[S])
 
-plt.axline((0, 0), slope=2, color='black', linestyle='--', linewidth=1)
 plt.axline((0, 0), slope=1, color='black', linestyle='--', linewidth=1)
 
 plt.grid(True)
 plt.legend()
 plt.show()
+
+for S in [1,2,3,4,5,6,7,8,9,10]:
+    x = [T*(d/D - 1/(S*T))**2 + (d/D - 1/(S*T)) for D, T in zip(Ds[S], Ts[S])]
+    plt.scatter(capped_data_variant[S]['x'], capped_data_variant[S]['y'], label='S='+str(S), color=S_colors[S])
+
+plt.axline((0, 0), slope=1, color='black', linestyle='--', linewidth=1)
+
+plt.grid(True)
+plt.legend()
+plt.show()
+
+# %%
+
+for S in [1,2,3,4,5,6,7,8,9,10]:
+    x = [T*(d/D - 1/(S*T))**2 + 1*(d/D - 1/(S*T)) for D, T in zip(Ds[S], Ts[S])]
+    plt.scatter(x, capped_data_variant_2[S]['y'], label='S='+str(S), color=S_colors[S])
+
+plt.axline((0, 0), slope=1, color='black', linestyle='--', linewidth=1)
+
+plt.grid(True)
+plt.legend()
+plt.show()
+
 
 # %%
 # Generate rand data
@@ -339,25 +382,25 @@ for S in [1,2,3,4,5,6,7,8,9,10]:
         above_diag = torch.triu(torch.ones(T, T), diagonal=1).bool()
         rand = torch.randint(0,2,size=(T,)).float() * 2 - 1
 
-        y = (torch.einsum('tn,un,um,vm,u->tv', 
-                          embed[l], embed[l], embed[l-1], embed[l-1],rand
-                         )[above_diag]/S**2).pow(2).mean()
-        x = T*(d/D)**2
+        W = torch.einsum('un,um,u->nm', embed[l], embed[l-1], rand)/S
+
+        a = torch.einsum('tn,nm,vm->tv', embed[l], W, embed[l-1])/S
+        b = torch.einsum('tn,vn,v->tv', embed[l], embed[l], rand)/S 
+        c = torch.einsum('tm,vm,t->tv', embed[l-1], embed[l-1], rand)/S
+
+        y = a[above_diag].pow(2).mean()
+        x = T*(d/D-1/(S*T))**2 + 2*(d/D - 1/(S*T))
 
         rand_data[S]['x'].append(x)
         rand_data[S]['y'].append(y)
 
-
-        rand = torch.randint(0,2,size=(T,)).float() * 2 - 1
-        a = torch.einsum('tn,un,um,vm,u->tv', embed[l], embed[l], embed[l-1], embed[l-1], rand) 
-        b = torch.einsum('tn,vn,vm,vm,v->tv', embed[l], embed[l], embed[l-1], embed[l-1], rand) 
-        c = torch.einsum('tn,tn,tm,vm,t->tv', embed[l], embed[l], embed[l-1], embed[l-1], rand) 
-        y = ((a-b-c)/S**2).pow(2).mean()
+        y = (a-b-c)[above_diag].pow(2).mean()
+        x = T*(d/D-1/(S*T))**2
         rand_data_variant[S]['x'].append(x)
         rand_data_variant[S]['y'].append(y)
 
-        y = torch.einsum('tn,un,um,vm->tv', embed[l], embed[l], embed[l-1], embed[l-1])[above_diag].mean()
-        x = (S**2*d/D)**2
+        y = (a-c)[above_diag].pow(2).mean()
+        x = T*(d/D-1/(S*T))**2 + (d/D - 1/(S*T))
         rand_data_variant_2[S]['x'].append(x)
         rand_data_variant_2[S]['y'].append(y)
 
@@ -370,39 +413,137 @@ plt.title('rand')
 for S in [1,2,3,4,5,6,7,8,9,10]:
     x = [T*(d/D - 1/(S*T))**2 + 2*(d/D - 1/(S*T)) for D, T in zip(Ds[S], Ts[S])]
     plt.scatter(x, rand_data[S]['y'], label='S='+str(S), color=S_colors[S])
-plt.axline((0, 0), slope=2, color='black', linestyle='--', linewidth=1)
 plt.axline((0, 0), slope=1, color='black', linestyle='--', linewidth=1)
 plt.grid(True)
 plt.legend()
-ylim = plt.ylim()
-xlim = plt.xlim()
 plt.show()
+
+
+for S in [1,2,3,4,5,6,7,8,9,10]:
+    plt.scatter(rand_data_variant[S]['x'], rand_data_variant[S]['y'], marker='o', label='S='+str(S), color=S_colors[S])
+plt.axline((0, 0), slope=1, color='black', linestyle='--', linewidth=1)
+plt.grid(True)
+plt.legend()
+plt.show()
+
+for S in [1,2,3,4,5,6,7,8,9,10]:
+    plt.scatter(rand_data_variant_2[S]['x'], rand_data_variant_2[S]['y'], marker='o', label='S='+str(S), color=S_colors[S])
+plt.axline((0, 0), slope=1, color='black', linestyle='--', linewidth=1)
+plt.grid(True)
+plt.legend()
+
+plt.show()
+
 
 # %%
-for S in [1,2,3,4,5,6,7,8,9,10]:
-    plt.scatter(rand_data_variant[S]['x'], rand_data_variant[S]['y'], marker='x', label='S='+str(S), color=S_colors[S])
-plt.axline((0, 0), slope=2, color='black', linestyle='--', linewidth=1)
-plt.axline((0, 0), slope=1, color='black', linestyle='--', linewidth=1)
-plt.grid(True)
-plt.legend()
-plt.ylim(ylim)
-plt.xlim(xlim)
-plt.show()
+# Generate combined data
 
+combined_data = {}
 for S in [1,2,3,4,5,6,7,8,9,10]:
-    plt.scatter([T*x for x in rand_data_variant_2[S]['x']], rand_data_variant_2[S]['y'], marker='x', label='S='+str(S), color=S_colors[S])
-plt.axline((0, 0), slope=2, color='black', linestyle='--', linewidth=1)
-plt.axline((0, 0), slope=1, color='black', linestyle='--', linewidth=1)
-plt.grid(True)
-plt.legend()
+    combined_data[S] = {'x':[], 'y':[]}
 
-plt.show()
+    for D, T in DTs:
+        circ = RotSmallCircuits_4d(T, b=1)
+        try:
+            net = CompInSup(D, L, S, circ)
+        except:
+            continue
+
+        embed = net.embed
+        w_correction = None
+        rand = torch.randint(0,2,size=(T,)).float() * 2 - 1
+
+        l=1
+
+        capped_embed = torch.einsum('tn,tm->nm',embed[l],embed[l-1])
+        capped_embed.clamp_(max=1.0)
+
+        above_diag = torch.triu(torch.ones(T, T), diagonal=1).bool()
+        every_unwanted_interaction = torch.einsum('tn,nm,um->tu', embed[l], capped_embed, embed[l-1])[above_diag].sum()
+        every_possible_interaction = T*(T-1)/2 * S*S
+        capped_corr_1 = every_unwanted_interaction/(every_possible_interaction-every_unwanted_interaction) 
+
+        capped_embed -= (torch.ones_like(capped_embed) - capped_embed) * capped_corr_1
+
+        W = capped_embed/S + torch.einsum('un,um,u->nm', embed[l], embed[l-1], rand)/S
+
+        a = torch.einsum('tn,nm,vm->tv', embed[l], W, embed[l-1])/S
+        c = torch.einsum('tm,vm,t->tv', embed[l-1], embed[l-1], (rand+1) )/S
+
+        y = (a-c)[above_diag].pow(2).mean()
+        x = 2*T*(d/D-1/(S*T))**2 + 2*(d/D - 1/(S*T))
+        combined_data[S]['x'].append(x)
+        combined_data[S]['y'].append(y)
+
+
+
+# %% 
+# Plot for post 
+
+import matplotlib.patches as mpatches
+from matplotlib.lines import Line2D
+legend_handles = [mpatches.Patch(color=S_colors[S], label=f'S={S}') for S in S_colors] + \
+                 [Line2D([0], [0], marker='o', linestyle='None', color='gray', label=r'$T>D/d$'),
+                  Line2D([0], [0], marker='x', linestyle='None', color='gray', label=r'$T\leq D/d$'),
+                  Line2D([0], [0], marker='None', linestyle='--', color='black', label='y=x')]
+
+
+
+for j, data in enumerate([rand_data_variant_2, capped_data_variant_2, combined_data]):
+    for S in [1,2,3,4,5,6,7,8,9,10]:
+        for i, x in enumerate(data[S]['x']):
+            y = data[S]['y'][i]
+            D = Ds[S][i]
+            T = Ts[S][i]
+
+            if d*T > D:
+                marker='o'
+            else:
+                marker='x'
+
+            #x = T*(d/D - 1/(S*T))**2 + (d/D - 1/(S*T))
+            plt.plot(x, y, marker=marker, color=S_colors[S])
+
+    plt.axline((0, 0), slope=1, color='black', linestyle='--', linewidth=1, label='Theory')
+    plt.grid(True)
+
+    plt.xlabel(r'$T(\frac{d}{D} - \frac{1}{S*T})^2 + (\frac{d}{D} - \frac{1}{S*T})$')
+    plt.ylabel(r'$\underset{v\neq t}{\mathbb{E}}\left[\left(\dfrac{1}{S}\left<{e^l_t}\right|W^l\left|{e_v^{l-1}}\right>-\dfrac{1}{S}\left<{e^{l-1}_t|e^{l-1}_t}\right>w_t\right)^2\right]$')
+
+    if j == 0:
+        plt.title(r'$\bar{w}=0$ and $\Delta w_u = \text{[1 or -1]}_u$')
+    elif j == 1:
+        plt.title(r'$\bar{w}=1$ and $\Delta w_u = 0$')
+    elif j == 2:
+        plt.title(r'$\bar{w}=1$ and $\Delta w_u = \text{[1 or -1]}_u$')
+        plt.xlabel(r'$2\left(T(\frac{d}{D} - \frac{1}{S*T})^2 + (\frac{d}{D} - \frac{1}{S*T})\right)$')
+
+
+    plt.legend(handles=legend_handles)
+    plt.show()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 # %%
 for S in [1,2,3,4,5,6,7,8,9,10]:
     x = [T*(d/D - 1/(S*T))**2 for D, T in zip(Ds[S], Ts[S])]    
     plt.scatter(x, rand_data_variant_2[S]['y'], marker='x', label='S='+str(S), color=S_colors[S])
-plt.axline((0, 0), slope=2, color='black', linestyle='--', linewidth=1)
+
 plt.axline((0, 0), slope=1, color='black', linestyle='--', linewidth=1)
 plt.grid(True)
 plt.legend()
