@@ -33,8 +33,8 @@ from classes_and_functions import (RotSmallCircuits_3d,
 # %%
 # Create network
 
-T = 500
-D = 2*T
+T = 557
+D = 1000
 d = 4
 Dod = D // d
 S = 6
@@ -69,11 +69,42 @@ plot_rot(run, rows=rows, cols=cols,
          title=f'z=3, D={D}, D/d={Dod}, T={T}, S={S}; Rotated Vector, Active circuits, Layers 0 to 5',
          colors=['green', 'orange'])
 # %%
+# Lucius's versions
+rows=2
+cols=5
+bs=rows*cols
+run = net.run(L, z=1, bs=bs, capped=True)
+plot_rot(run, rows=rows, cols=cols, 
+         colors=['green', 'purple'])
+
+# %%
+rows=1
+cols=5
+bs=rows*cols
+
+run = net.run(L, z=1, bs=bs, capped=True)
+plot_rot(run, rows=rows, cols=cols, 
+         colors=['green', 'purple'], label='Estimated \nwith z=1')
+
+run = net.run(L, z=2, bs=bs, capped=True)
+plot_rot(run, rows=rows, cols=cols, 
+         colors=['green', 'red'], label='Estimated \nwith z=2')
+
+run = net.run(L, z=3, bs=bs, capped=True)
+plot_rot(run, rows=rows, cols=cols, 
+         colors=['green', 'orange'], label='Estimated \nwith z=3')
+# %%
+for _ in range(20):
+    run = net.run(L, z=3, bs=bs, capped=True)
+    plot_just_true_rotations(run, rows=1, cols=5, colors=['green'])
+
+# %%
 # Generate runs
 L = 5
 normal_runs = []
 normal_labels = []
-bs = T * 100
+bs = T*100
+print(f'Using bs={bs}')
 
 run = net.run(L, z=3, bs=bs, capped=True)
 normal_runs.append(run)
@@ -97,6 +128,81 @@ plot_mse_rot(        L, normal_labels, normal_runs, title=None, colors=colors, f
 plot_worst_error_rot(L, normal_labels, normal_runs, title=None, colors=colors, figsize=(11,4))
 #title=f'D={D}, D/d={Dod}, T={T}, S={S}'
 
+#%%
+# For Lucius
+mse_on = []
+mse_x = []
+mse_on_inactive = []
+mse_x_inactive = []
+worst_error_on = []
+worst_error_x = []
+worst_error_on_inactive = []
+worst_error_x_inactive = []
+
+colors = ['orange', 'red', 'purple']
+
+for run in normal_runs:
+    mse_on.append((run.on - run.est_on).pow(2).mean(dim=(1, 2)).cpu().numpy())
+    mse_x.append((run.x - run.est_x).pow(2).mean(dim=(1, 2)).sum(dim=-1).cpu().numpy())
+    mse_on_inactive.append((run.est_inactive_on).pow(2).mean(dim=(1, 2)).cpu().numpy())
+    mse_x_inactive.append((run.est_inactive_x).pow(2).mean(dim=(1, 2)).sum(dim=-1).cpu().numpy())
+    worst_error_on.append((run.on - run.est_on).abs().amax(dim=(1, 2)).cpu().numpy())
+    worst_error_x.append((run.x - run.est_x).norm(dim=-1).amax(dim=(1, 2)).cpu().numpy())
+    worst_error_on_inactive.append((run.est_inactive_on).abs().amax(dim=(1, 2)).cpu().numpy())    
+    worst_error_x_inactive.append((run.est_inactive_x).norm(dim=-1).amax(dim=(1, 2)).cpu().numpy())
+
+for ptype in ['x', 'on']:
+    fig = plt.figure(figsize=(8,8))
+    
+    if ptype == 'on':
+        fig.suptitle(f'On-Indicators', fontsize=14)
+    else:
+        fig.suptitle(f'Rotating Vectors', fontsize=14)
+
+    plt.subplot(2, 2, 1)
+    for i, label in enumerate(normal_labels):
+        if ptype == 'on':
+            plt.plot(mse_on_inactive[i], marker='o', label=label, color=colors[i])
+        else:
+            plt.plot(mse_x_inactive[i], marker='o', label=label, color=colors[i])
+    plt.title('Inactive Circuits')
+    plt.ylabel('Mean Squared Error')
+
+    plt.subplot(2, 2, 2)
+    for i, label in enumerate(normal_labels):
+        if ptype == 'on':
+            plt.plot(mse_on[i], marker='o', label=label, color=colors[i])
+        else:
+            plt.plot(mse_x[i], marker='o', label=label, color=colors[i])
+    plt.title('Active Circuits')
+    plt.ylabel('Mean Squared Error')
+
+    plt.subplot(2, 2, 3)
+    for i, label in enumerate(normal_labels):
+        if ptype == 'on':
+            plt.plot(worst_error_on_inactive[i], marker='o', label=label, color=colors[i])
+        else:
+            plt.plot(worst_error_x_inactive[i], marker='o', label=label, color=colors[i])
+    plt.title('Inactive Circuits')
+    plt.ylabel('Worst Case Absolute Error')
+
+    plt.subplot(2, 2, 4)
+    for i, label in enumerate(normal_labels):
+        if ptype == 'on':
+            plt.plot(worst_error_on[i], marker='o', label=label, color=colors[i])
+        else:
+            plt.plot(worst_error_x[i], marker='o', label=label, color=colors[i])
+    plt.title('Active Circuits')
+    plt.ylabel('Worst Case Absolute Error')
+
+    for j in range(4):
+        plt.subplot(2, 2, j+1)
+        plt.xlabel('Layer')
+        plt.legend()
+        plt.grid(True)
+
+    plt.tight_layout()
+    plt.show()
 
 # %%
 # Generate stable runs
@@ -238,7 +344,7 @@ for i in range(4):
     plt.ylim(0, 0.55)
     plt.xticks(torch.arange(L+1))
 
-title = f'D={D}, D/d={Dod}, T={T}, S={S}'
+title = '' # f'D={D}, D/d={Dod}, T={T}, S={S}'
 fig.text(0.5, -0.05, title, ha='center', va='bottom', fontsize=16)
 
 plt.tight_layout()
@@ -490,6 +596,7 @@ Ds = sorted(list(set([D for D, T in DTs])))
 
 
 
+
 d=4
 active = True
 
@@ -498,8 +605,8 @@ l0 = 1
 
 L = 4
 z_max = 4
-for active in [True]:  #[True, False]:
-    for a_type in ['x']:  #['on', 'x']:
+for active in [True, False]:
+    for a_type in ['on', 'x']:
 
         fig = plt.figure(figsize=(12,12))
 
@@ -529,7 +636,7 @@ for active in [True]:  #[True, False]:
                     if T > D/d:
                         marker = 'o'
                     else:
-                        marker = 'x'
+                        marker = '^'
                     if T*(d/D)**2 < 0.006 or True:
                         plt.plot(T*(d/D)**2, mse[j][l], marker=marker, linestyle='None', color=D_colors[D])
                         #x = T*(d/D)**2 * z * (l-1) + (d/D) * (z-1) * l + T*8*(d/D)**2 * (z-1) * (l-1) + 8*(d/D) * (z-1) * l
@@ -563,11 +670,20 @@ for active in [True]:  #[True, False]:
                             #y = T*(d/D-1/(S*T))**2 * z * (l-1) + (d/D-1/(S*T)) * (z-1) * l + T*8*(d/D-1/(S*T))**2 * (z-1) * (l-1) + 8*(d/D-1/(S*T)) * (z-1) * l
                             y = (l-1)*T*(d/D-1/(S*T))**2*(z + (z-1)*8) + l*(d/D-1/(S*T))*(z-1)*9
                             line,  = plt.plot(x, y, color=D_colors[D], linestyle='--', linewidth=1, scalex=False, scaley=False)
-                        if l>1:
-                            plt.axline((0, 0), slope=(l-1)*(z + 16*(z-1)), color='black', linestyle='--', linewidth=1)
+                        #if l>1:
+                            #plt.axline((0, 0), slope=(l-1)*(z + 16*(z-1)), color='black', linestyle='--', linewidth=1)
+                    else:
+                        T = torch.arange(100, 2000, 10)
+                        x = T*(d/D)**2
+                        y = T * 0
+                        line,  = plt.plot(x, y, color='gray', linestyle='--', linewidth=1, scalex=False, scaley=False)
                 else:
                     for D in Ds:
-                        plt.axhline(y=z*d/D, color=D_colors[D], linestyle=':', linewidth=1)
+                        T = torch.arange(100, 2000, 10)
+                        x = T*(d/D)**2
+                        y = (d/D-1/(S*T))*z
+                        line,  = plt.plot(x, y, color=D_colors[D], linestyle='--', linewidth=1, scalex=False, scaley=False)
+                        
 
 
                 plt.grid(True)
@@ -580,24 +696,17 @@ for active in [True]:  #[True, False]:
                         
         handles = [mpatches.Patch(color=D_colors[D], label=f'D={D}') for D in D_colors] + \
                     [Line2D([0], [0], marker='o', linestyle='None', color='gray', label=r'$T>D/d$'),
-                    Line2D([0], [0], marker='x', linestyle='None', color='gray', label=r'$T\leq D/d$')]                        
+                    Line2D([0], [0], marker='^', linestyle='None', color='gray', label=r'$T\leq D/d$'),
+                    Line2D([0], [0], color='gray', linestyle=':', label='Theory')]                        
 
         if active and a_type=='x':
             title = f'Active Circuits, Rotated Vector, S={S}'
-            handles += [Line2D([0], [0], color='gray', linestyle=':', label=r'MSE = $9(z-1)\dfrac{d}{D}$'),
-                        Line2D([0], [0], color='black', linestyle='--', 
-                            label=r'MSE = $(l-1)\left( z+16(z-1)\right) T\left(\dfrac{d}{D}\right)^2$')]
         elif active and a_type=='on':
             title = f'Active Circuits, On-Indicator, S={S}'
-            
         elif not active and a_type=='on':
             title = f'Inactive Circuits, On-Indicator, S={S}'
-            handles += [Line2D([0], [0], color='gray', linestyle=':', label=r'MSE = $z\dfrac{d}{D}$')]
-
         else:
             title = f'Inactive Circuits, Rotated Vector, S={S}'
-            handles += [Line2D([0], [0], color='gray', linestyle=':', label=r'MSE = $z\dfrac{d}{D}$')]
-                
 
         if ideal:
             title += ', Ideal'
@@ -611,4 +720,102 @@ for active in [True]:  #[True, False]:
         fig.legend(handles = handles, bbox_to_anchor=(1.01, 0.95), loc='upper left', borderaxespad=0.)
         plt.tight_layout()
         plt.show()
+# %%
+
+
+xs = [1, 0, -1]
+ys = [0, 1, 0]
+
+
+print('Option 1')
+plt.scatter(xs, ys)
+
+for i in range(len(xs) - 1):
+    dx = xs[i+1] - xs[i]
+    dy = ys[i+1] - ys[i]
+    plt.arrow(xs[i], ys[i], dx, dy,
+              length_includes_head=True,
+              head_width=0.1, head_length=0.15)
+
+plt.axis("equal")
+plt.show()
+
+#%%
+print('Option 2')
+plt.scatter(xs, ys)
+
+for i in range(len(xs) - 1):
+    plt.annotate(
+        "",
+        xy=(xs[i+1], ys[i]),
+        xytext=(xs[i], ys[i]),
+        arrowprops=dict(arrowstyle="-|>-")
+    )
+
+plt.axis("equal")
+plt.show()
+# %%
+
+print('Option 3')
+dx = [xs[i+1] - xs[i] for i in range(len(xs)-1)]
+dy = [ys[i+1] - ys[i] for i in range(len(ys)-1)]
+
+plt.scatter(xs, ys)
+
+plt.quiver(xs[:-1], ys[:-1], dx, dy,
+           angles='xy', scale_units='xy', scale=1)
+
+plt.axis("equal")
+plt.show()
+
+
+print('Option 4')
+from matplotlib.collections import LineCollection
+
+segments = [ [(xs[i], ys[i]), (xs[i+1], ys[i+1])] for i in range(len(xs)-1) ]
+
+lc = LineCollection(segments)
+plt.gca().add_collection(lc)
+
+# Mark points
+plt.scatter(xs, ys)
+
+# Add arrows
+for i in range(len(xs)-1):
+    plt.annotate("",
+                 xy=(xs[i+1], ys[i+1]),
+                 xytext=(xs[i], ys[i]),
+                 arrowprops=dict(arrowstyle="->"))
+
+plt.axis("equal")
+plt.show()
+
+
+
+# %%
+plt.figure(figsize=(6,6))
+
+# Plot points
+plt.plot(xs, ys, label="Points")
+
+for i in range(len(xs) - 1):
+    x1, y1 = xs[i], ys[i]
+    x2, y2 = xs[i+1], ys[i+1]
+
+    # Compute midpoint
+    mx = (x1 + x2) / 2
+    my = (y1 + y2) / 2
+
+    # Arrow only from midpoint to midpoint+tiny step
+    plt.annotate(
+        "",
+        xy=(mx + (x2 - x1)*0.01, my + (y2 - y1)*0.01),  # tiny offset toward the next point
+        xytext=(mx - (x2 - x1)*0.01, my - (y2 - y1)*0.01),
+        arrowprops=dict(arrowstyle="->", lw=1.5)
+    )
+
+plt.title("Arrows in the Middle of Each Line Segment")
+plt.axis("equal")
+plt.grid(True)
+plt.show()
 # %%

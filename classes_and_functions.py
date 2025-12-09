@@ -550,7 +550,8 @@ def expected_mse_rot(T, Dod, l, b, z):
 
 
 
-def plot_mse_rot(L, labels, runs, title, expected=None, y_max=None, include_inactive=True, colors=None, figsize=None):
+def plot_mse_rot(L, labels, runs, title, expected=None, y_max=None, 
+                 include_inactive=True, colors=None, figsize=None):
     """Plot the mean squared error for a set of runs."""
     
     mse_on = []
@@ -754,7 +755,7 @@ def plot_worst_error_rot(L, labels, runs, title, expected=None, y_max=None, incl
 
 
 
-def plot_rot(run, rows=4, cols=6, title=None, colors=None):
+def plot_rot(run, rows=4, cols=6, title=None, colors=None, label=None):
 
     est_x = run.est_x.detach().cpu().numpy()
     x = run.x.detach().cpu().numpy()
@@ -762,21 +763,25 @@ def plot_rot(run, rows=4, cols=6, title=None, colors=None):
     fig, ax = plt.subplots(rows, cols, figsize=(1.8*cols, 2*rows+0.3))
     ax = ax.flatten()
 
+    if label is None:
+        label = 'Estimated'
+
     for i in range(rows * cols):
         if i < run.x.shape[1]:
             if colors is not None:
                 ax[i].plot(x[:, i, 0, 0], x[:, i, 0, 1], label='True', marker='o', color=colors[0])
-                ax[i].plot(est_x[:, i, 0, 0], est_x[:, i, 0, 1], label='Estimated', marker='x', color=colors[1])
+                ax[i].plot(est_x[:, i, 0, 0], est_x[:, i, 0, 1], label=label, marker='x', color=colors[1])
             else:
                 ax[i].plot(x[:, i, 0, 0], x[:, i, 0, 1], label='True', marker='o')
-                ax[i].plot(est_x[:, i, 0, 0], est_x[:, i, 0, 1], label='Estimated', marker='x')
+                ax[i].plot(est_x[:, i, 0, 0], est_x[:, i, 0, 1], label=label, marker='x')
             ax[i].set_xlim(-1.3, 1.3)
             ax[i].set_ylim(-1.3, 1.3)
             ax[i].set_aspect('equal', 'box')
             ax[i].grid(True)
             ax[i].set_title(f'Sample {i+1}')
-            if i == 0:
-                ax[i].legend()
+            if i == cols - 1:
+                #Add legend outside the plot, to the right
+                ax[i].legend(loc='center left', bbox_to_anchor=(1, 0.5))
         else:
             ax[i].axis('off')
 
@@ -789,7 +794,41 @@ def plot_rot(run, rows=4, cols=6, title=None, colors=None):
     plt.tight_layout()
     plt.show()
 
+def plot_just_true_rotations(run, rows=4, cols=6, colors=None):
+    x = run.x.detach().cpu().numpy()
 
+    fig, ax = plt.subplots(rows, cols, figsize=(1.8*cols, 2*rows+0.3))
+    ax = ax.flatten()
+
+    for i in range(rows * cols):
+        if i < run.x.shape[1]:
+            if colors is not None:
+                ax[i].plot(x[:, i, 0, 0], x[:, i, 0, 1], label='True', marker='o', color=colors[0])
+            else:
+                ax[i].plot(x[:, i, 0, 0], x[:, i, 0, 1], label='True', marker='o')
+            ax[i].set_xlim(-1.3, 1.3)
+            ax[i].set_ylim(-1.3, 1.3)
+            ax[i].set_aspect('equal', 'box')
+            ax[i].grid(True)
+            ax[i].set_title(f'Sample {i+1}')
+
+            for j in range(len(x[:, i, 0, 0])-1):
+                x1, y1 = x[j, i, 0, 0], x[j, i, 0, 1]
+                x2, y2 = x[j+1, i, 0, 0], x[j+1, i, 0, 1]
+                mx = (x1 + 2*x2) / 3
+                my = (y1 + 2*y2) / 3
+                ax[i].annotate(
+                    "",
+                    xy=(mx + (x2 - x1)*0.01, my + (y2 - y1)*0.01),  # tiny offset toward the next point
+                    xytext=(mx - (x2 - x1)*0.01, my - (y2 - y1)*0.01),
+                    arrowprops=dict(arrowstyle="->", lw=1.5, color='green'),
+    )
+
+        else:
+            ax[i].axis('off')
+
+    plt.tight_layout()
+    plt.show()
 
 
 
