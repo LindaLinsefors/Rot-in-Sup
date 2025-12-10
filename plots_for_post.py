@@ -1,5 +1,13 @@
-#%% Set up
-#   Set up
+# This notebook was used to generate the plots for our LW post.
+# All plots in the post comes from here, but not all plots here
+# are in the post.
+# 
+# If you run this code yourself, you will find that plot will not 
+# look exactly the same as in the post. This is becasue there are
+# random elements in the code, and I have not set any random seed.
+#
+# %% 
+# Set up
 
 from code import interact
 import numpy as np
@@ -7,10 +15,13 @@ import matplotlib.pyplot as plt
 import torch
 import tqdm
 
-device = 'cpu'
-torch.set_default_device(device)
+# Unsing cpu becasue this code is more memory intensive 
+# than compute intensive
+device = 'cpu' 
+torch.set_default_device(device) 
 
-#Make sure networks.py and assignments.py are reloaded
+# Make sure networks.py and assignments.py are reloaded
+# when this sell is run, in case I made changes to them
 import importlib, assignments, classes_and_functions
 importlib.reload(assignments)
 importlib.reload(classes_and_functions)
@@ -29,23 +40,28 @@ from classes_and_functions import (RotSmallCircuits_3d,
                                    plot_mse_rot,
                                    plot_worst_error_rot,
                                    expected_mse_rot,
-                                   plot_rot)
+                                   plot_rot,
+                                   plot_just_true_rotations,)
 # %%
 # Create network
 
-T = 557
-D = 1000
-d = 4
-Dod = D // d
-S = 6
+T = 557 # Number of circuits
+D = 1000 # Neurons per layer in the large netowrk
+d = 4 # Neurons per layer in the small circuits
+Dod = D // d # D/d : This number is used a lot
+S = 6 # Embeding redundancy: How many netowrk neurns are used to embed each circuit neuron.
 
-L = 5
-z = 1
+L = 5 # Number of layers
+z = 1 # Number of active circuits
 
-circ = RotSmallCircuits_4d(T, b=1)
-net = CompInSup(D, L, S, circ)
-# %%
+circ = RotSmallCircuits_4d(T, b=1) # Create T small circuits
+net = CompInSup(D, L, S, circ) # Create the large network
+# %% ############################################################
 # Plot rotations
+
+# This and the next few cells produces plot of the rotated vectors
+# for sampled circuits, for z=1, z=2, and z=3. Comparing the true
+# values to the estimated ones extracted from the large network.
 
 importlib.reload(classes_and_functions)
 from classes_and_functions import plot_rot
@@ -69,7 +85,7 @@ plot_rot(run, rows=rows, cols=cols,
          title=f'z=3, D={D}, D/d={Dod}, T={T}, S={S}; Rotated Vector, Active circuits, Layers 0 to 5',
          colors=['green', 'orange'])
 # %%
-# Lucius's versions
+# Figure 1 in LW post
 rows=2
 cols=5
 bs=rows*cols
@@ -78,6 +94,42 @@ plot_rot(run, rows=rows, cols=cols,
          colors=['green', 'purple'])
 
 # %%
+# Figure 2 in LW post
+plot_just_true_rotations(run, rows=1, cols=5, colors=['green'])
+
+
+# Plot step function
+# Figure 3 in LW post
+
+plt.figure(figsize=(5, 3))
+
+#plt.axes().set_aspect('equal')
+
+x = torch.tensor([-1, 0.25, 0.75, 2])
+
+plt.plot(x, torch.relu(2*x-0.5), label=r'$\left(a^l_t\right)_0 = ReLU(2\alpha_t^{l-1}-0.5)$', 
+         color='blue', alpha=0.5, lw=6)
+plt.plot(x, torch.relu(2*x-1.5), label=r'$\left(a^l_t\right)_1 = ReLU(2\alpha_t^{l-1}-1.5)$',
+         color='red', alpha=0.5, lw=6)
+plt.plot(x, torch.relu(2*x-0.5) - torch.relu(2*x-1.5), label=r'$\alpha_t^l = \left(a^l_t\right)_0 - \left(a^l_t\right)_1$',
+         color='green', alpha=0.5, lw=6)
+
+plt.legend()
+
+
+plt.xlabel(r'$\alpha_t^{l-1} = \left(a^{l-1}_t\right)_0 - \left(a^{l-1}_t\right)_1$')
+
+plt.ylim(-0.1, 1.6)
+plt.xlim(-0.1, 1.1)
+
+plt.grid(True)
+plt.yticks([0, 0.25, 0.5, 0.75, 1, 1.25, 1.5])
+plt.xticks([0, 0.25, 0.5, 0.75, 1])
+
+plt.show()
+
+# %%
+# Figure 4 in LW post
 rows=1
 cols=5
 bs=rows*cols
@@ -93,43 +145,52 @@ plot_rot(run, rows=rows, cols=cols,
 run = net.run(L, z=3, bs=bs, capped=True)
 plot_rot(run, rows=rows, cols=cols, 
          colors=['green', 'orange'], label='Estimated \nwith z=3')
-# %%
-for _ in range(20):
-    run = net.run(L, z=3, bs=bs, capped=True)
-    plot_just_true_rotations(run, rows=1, cols=5, colors=['green'])
 
-# %%
+
+# %% 
 # Generate runs
-L = 5
+
+# The next few plots are based on statisitcs of may runs. 
+# This cell prepares generate the data for these plots.
+
+L = 5 # Number of layers
 normal_runs = []
 normal_labels = []
-bs = T*100
-print(f'Using bs={bs}')
+bs = T*100 # Batch size, i.e. number of independent runs.
 
+# z=3, i.e. 3 simultanious active circuits.
+# Runs the network for T*100 randomly sampled tripples of active circuits
 run = net.run(L, z=3, bs=bs, capped=True)
 normal_runs.append(run)
 normal_labels.append('z=3')
 
+# z=2, i.e. 2 simultanious active circuits.
+# Runs the network for T*100 randomly sampled pairs of active circuits
 run = net.run(L, z=2, bs=bs, capped=True)
 normal_runs.append(run)
 normal_labels.append('z=2')
 
+# z=1, i.e. only one active ciruit per forward pass.
+# Runs the network T times, each time with a different active circuit.
 run = net.run(L, z=1, bs=T, capped=True, active_circuits=torch.arange(T).reshape(T,1))
 normal_runs.append(run)
 normal_labels.append('z=1')
 
 #%%
-# Plot errors
+# Plot Mean Squared and Worst Case Errors
 importlib.reload(classes_and_functions)
 from classes_and_functions import plot_mse_rot, plot_worst_error_rot
 
+title=f'D={D}, D/d={Dod}, T={T}, S={S}'
 colors = ['orange', 'red', 'purple']
-plot_mse_rot(        L, normal_labels, normal_runs, title=None, colors=colors, figsize=(11,4))
-plot_worst_error_rot(L, normal_labels, normal_runs, title=None, colors=colors, figsize=(11,4))
-#title=f'D={D}, D/d={Dod}, T={T}, S={S}'
+plot_mse_rot(        L, normal_labels, normal_runs, title=title, colors=colors, figsize=(11,4))
+plot_worst_error_rot(L, normal_labels, normal_runs, title=title, colors=colors, figsize=(11,4))
+
 
 #%%
-# For Lucius
+# Same plots as the ones from previous cell, but arranged differently
+# Figures 5 and 6 in LW post
+
 mse_on = []
 mse_x = []
 mse_on_inactive = []
@@ -205,108 +266,8 @@ for ptype in ['x', 'on']:
     plt.show()
 
 # %%
-# Generate stable runs
-
-net = CompInSup(D, L, S, circ, w_correction=1.15)
-
-stable_runs = []
-stable_labels = []
-
-run = net.run(L, z=3, bs=T*100, capped=True)
-#run = net.run(L, z=3, bs=T, capped=True)
-stable_runs.append(run)
-stable_labels.append('z=3')
-
-run = net.run(L, z=2, bs=T*100, capped=True)
-#run = net.run(L, z=2, bs=T, capped=True)
-stable_runs.append(run)
-stable_labels.append('z=2')
-
-run = net.run(L, z=1, bs=T, capped=True, active_circuits=torch.arange(T).reshape(T,1))
-stable_runs.append(run)
-stable_labels.append('z=1')
-
-#%%
-# Plot errors
-importlib.reload(classes_and_functions)
-from classes_and_functions import plot_mse_rot, plot_worst_error_rot
-
-colors = ['orange', 'red', 'purple']
-plot_mse_rot(        L, stable_labels, stable_runs, title=None, colors=colors, figsize=(11,4))
-plot_worst_error_rot(L, stable_labels, stable_runs, title=f'D={D}, D/d={Dod}, T={T}, S={S}', colors=colors, figsize=(11,4))
-
-
-# %%
-# Test different batch sizes, z=2
-runs = []
-labels = []
-for bs in [T, 30*T, 100*T]:
-    run = net.run(L, z=2, bs=bs, capped=True)
-    runs.append(run)
-    labels.append(f'bs={bs}')
-plot_worst_error_rot(L, labels, runs, title=f'z=2, D/d={Dod}, T={T}, S={S}')
-# %%
-# Test different batch sizes, z=3
-runs = []
-labels = []
-for bs in [T, 30*T, 100*T]:
-    run = net.run(L, z=3, bs=bs, capped=True)
-    runs.append(run)
-    labels.append(f'bs={bs}')
-plot_worst_error_rot(L, labels, runs, title=f'z=3, D/d={Dod}, T={T}, S={S}')
-# %%
-# Plot step function
-
-fig, ax = plt.subplots(1, 3, figsize=(13, 5))
-ax = ax.flatten()
-x = torch.tensor([-1, 0.25, 0.75, 2])
-
-ax[0].plot(x, torch.relu(2*x-0.5), color='green')
-ax[1].plot(x, torch.relu(2*x-1.5), color='green')
-ax[2].plot(x, torch.relu(2*x-0.5) - torch.relu(2*x-1.5), color='green')
-
-
-for a in ax:    
-    a.set_ylim(0, 2)
-    a.grid(True)
-    a.set_yticks([0, 0.5, 1, 1.5, 2])
-    a.set_xlim(-0.2, 1.2)
-    a.set_xticks([0, 0.25, 0.5, 0.75, 1])
-
-
-plt.show()
-# %%
-# %%
-# Plot step function
-
-plt.figure(figsize=(5, 3))
-
-#plt.axes().set_aspect('equal')
-
-x = torch.tensor([-1, 0.25, 0.75, 2])
-
-plt.plot(x, torch.relu(2*x-0.5), label=r'$\left(a^l_t\right)_0 = ReLU(2\alpha_t^{l-1}-0.5)$', 
-         color='blue', alpha=0.5, lw=6)
-plt.plot(x, torch.relu(2*x-1.5), label=r'$\left(a^l_t\right)_1 = ReLU(2\alpha_t^{l-1}-1.5)$',
-         color='red', alpha=0.5, lw=6)
-plt.plot(x, torch.relu(2*x-0.5) - torch.relu(2*x-1.5), label=r'$\alpha_t^l = \left(a^l_t\right)_0 - \left(a^l_t\right)_1$',
-         color='green', alpha=0.5, lw=6)
-
-plt.legend()
-
-
-plt.xlabel(r'$\alpha_t^{l-1} = \left(a^{l-1}_t\right)_0 - \left(a^{l-1}_t\right)_1$')
-
-plt.ylim(-0.1, 1.6)
-plt.xlim(-0.1, 1.1)
-
-plt.grid(True)
-plt.yticks([0, 0.25, 0.5, 0.75, 1, 1.25, 1.5])
-plt.xticks([0, 0.25, 0.5, 0.75, 1])
-
-plt.show()
-# %%
 # Fraction of active neurons
+# Figure 7 in LW post
 
 fig = plt.figure(figsize=(11,4))
 epsilon = 1e-4
@@ -349,47 +310,84 @@ fig.text(0.5, -0.05, title, ha='center', va='bottom', fontsize=16)
 
 plt.tight_layout()
 plt.show()
+
+
+
+# %% ####################################################################
+# Here follows more experimentations, not directly shown in the post.
+#########################################################################
+
+
+# Generate more stable runs?
+
+# Generate a new network where the amount of inter-circuit supression
+# is increased by 15%, to see if this is better.
+
+w_correction = 1.15
+net = CompInSup(D, L, S, circ, w_correction=w_correction)
+
+stable_runs = []
+stable_labels = []
+
+run = net.run(L, z=3, bs=T*100, capped=True)
+#run = net.run(L, z=3, bs=T, capped=True)
+stable_runs.append(run)
+stable_labels.append('z=3')
+
+run = net.run(L, z=2, bs=T*100, capped=True)
+#run = net.run(L, z=2, bs=T, capped=True)
+stable_runs.append(run)
+stable_labels.append('z=2')
+
+run = net.run(L, z=1, bs=T, capped=True, active_circuits=torch.arange(T).reshape(T,1))
+stable_runs.append(run)
+stable_labels.append('z=1')
+
+#%%
+# Plot errors
+importlib.reload(classes_and_functions)
+from classes_and_functions import plot_mse_rot, plot_worst_error_rot
+
+colors = ['orange', 'red', 'purple']
+title=f'D={D}, D/d={Dod}, T={T}, S={S}, w_correction={w_correction}'
+plot_mse_rot(        L, stable_labels, stable_runs, title=title, colors=colors, figsize=(11,4))
+plot_worst_error_rot(L, stable_labels, stable_runs, title=title, colors=colors, figsize=(11,4))
+
+
+# %% 
+# Test different batch sizes, z=2
+# Is 100*T large enough to catch the worst case errors? Seems so, yes.
+
+runs = []
+labels = []
+for bs in [T, 30*T, 100*T]:
+    run = net.run(L, z=2, bs=bs, capped=True)
+    runs.append(run)
+    labels.append(f'bs={bs}')
+plot_worst_error_rot(L, labels, runs, title=f'z=2, D/d={Dod}, T={T}, S={S}')
 # %%
-run = runs[2]  # z=1
-for l in [2]:
-    for i in range(2):
-        plt.hist(run.pre_A[l,0,i*Dod:(i+1)*Dod].flatten(),  alpha=0.5, density=True)
-    plt.axvline(x=1.5, color='black', linestyle='--', linewidth=2)
-    plt.axvline(x=0.5, color='black', linestyle='--', linewidth=2)
-    plt.show()
-# %%
-# Checing chi calculations
+# Test different batch sizes, z=3
+# Is 100*T large enough to catch the worst case errors? Seems so, yes.
 
-embed = net.embed
-l=3
+runs = []
+labels = []
+for bs in [T, 30*T, 100*T]:
+    run = net.run(L, z=3, bs=bs, capped=True)
+    runs.append(run)
+    labels.append(f'bs={bs}')
+plot_worst_error_rot(L, labels, runs, title=f'z=3, D/d={Dod}, T={T}, S={S}')
 
-capped_embed = torch.einsum('tn,tm->nm',embed[l],embed[l-1])
-capped_embed.clamp_(max=1.0)
 
-inverted_capped_embed = torch.ones_like(capped_embed) - capped_embed
 
-above_diag = torch.triu(torch.ones(T, T), diagonal=1).bool()
 
-exp = torch.einsum('tn,nm,um->tu', embed[l], capped_embed, embed[l-1])[above_diag].mean()
-inv_exp = torch.einsum('tn,nm,um->tu', embed[l], inverted_capped_embed, embed[l-1])[above_diag].mean()
+# %% #########################################################
+# Ploting how the errors scale with D and T
+##############################################################
 
-chi = 1/S * exp/inv_exp
 
-W = capped_embed/S - inverted_capped_embed*chi
+#Checking max T for various D
+#The limiting factor is the assigment algorithm
 
-new_exp = torch.einsum('tn,nm,um->tu', embed[l], W, embed[l-1])[above_diag].mean()
-
-print(exp)
-print(inv_exp)
-print(new_exp)
-
-every_unwanted_interaction = torch.einsum('tn,nm,um->tu', embed[l], capped_embed, embed[l-1])[above_diag].sum()
-every_possible_interaction = T*(T-1)/2 * S*S
-capped_corr_1 = every_unwanted_interaction/(every_possible_interaction-every_unwanted_interaction) #* 10
-
-print(f'chi = {chi:.10f}')
-print(f'capped_corr_1/S = {capped_corr_1/S:.10f}')
-# %%
 d=4
 S=6
 
@@ -400,7 +398,7 @@ for D in [600,  800,  1000,  1200,  1400,  1600, 1800,  2000]:
     print(f'Maximum T for D={D}, D/d={Dod}, S={S} is {maxT(Dod, S)}')
 
 # %%
-
+# Alternative D and T values (not used)
 DTs = [(700, 200), 
        (800, 200), (800, 300),
        (900, 200), (900, 300), (900, 400),
@@ -412,15 +410,13 @@ DTs = [(700, 200),
        (1500, 200), (1500, 300), (1500, 400), (1500, 500), (1500, 600), (1500, 700), (1500, 800), (1500, 900), (1500, 1000), (1500, 1100),
        ]
 
-for D, T in DTs:
-    print(T*(d/D)**2)
-
 plt.plot([T*(d/D)**2 for D, T in DTs],[T*(d/D)**2 for D, T in DTs], 'x')
 plt.show()
 
 # %% 
 # Generate runs for different z, D, T
 
+# The set of D and T values I ended up using in the post
 DTs = [(800, 200), (800, 300),
        (1000, 200), (1000, 300), (1000, 400), (1000, 500),
        (1200, 200), (1200, 300), (1200, 400), (1200, 500), (1200, 600), (1200, 700),
@@ -430,15 +426,15 @@ DTs = [(800, 200), (800, 300),
        (2000, 200), (2000, 400), (2000, 600), (2000, 800), (2000, 1000), (2000, 1200), (2000, 1400), (2000, 1600), (2000, 1800), (2000, 2000),
        ]
 
-L = 4
-S = 6
-bs = 500
+L = 4 # Max layer
+S = 6 # Embeding redundancy
 
-w_correction = None
-ideal = False
-large = False
+w_correction = None # no modification of inter-circuit suppression
+ideal = False # ideal=False is the normal run. ideal=True are not using ReLUs but instead manualy turn off Large netowrk neuorns that are not used by any active circuit.
+large = False # large=True uses very large batch sizes to get more stable statistics, but takes much longer to run, and isn't nessesary.
 print(f'Using w_correction={w_correction}, ideal={ideal}, large={large}')
 
+# Variables to store information for plots
 DT_z_runs = {}
 mse_on = {}
 mse_x = {}
@@ -475,116 +471,9 @@ for z in [1, 2, 3, 4]:
 
 
 
-
-
-# %% Plot MSE for various D and T
-
-
-import matplotlib.patches as mpatches
-from matplotlib.lines import Line2D
-
-#D_colors = {700:'C0', 800:'C1', 900:'C2', 1000:'C3', 1100:'C4', 1200:'C5', 1300:'C6', 1400:'C7', 1500:'C8'} 
-D_colors = {800:'C0', 1000:'C1', 1200:'C2', 1400:'C3', 1600:'C4', 1800:'C5', 2000:'C6'}
-Ds = sorted(list(set([D for D, T in DTs])))
-
-figsize=(4, 3)
-legend_handles = [mpatches.Patch(color=D_colors[D], label=f'D={D}') for D in D_colors] + \
-                 [Line2D([0], [0], marker='o', linestyle='None', color='gray', label=r'$T>D/d$'),
-                  Line2D([0], [0], marker='x', linestyle='None', color='gray', label=r'$T\leq D/d$')]
-
-legend_handles_inactive = legend_handles + [Line2D([0], [0], color='gray', linestyle=':', label=r'MSE = $z\dfrac{d}{D}$')]
-
-legend_handles_active = legend_handles + [Line2D([0], [0], color='gray', linestyle=':', label=r'MSE = $9(z-1)\dfrac{d}{D}$'),
-                                          Line2D([0], [0], color='black', linestyle='--', 
-                                                 label=r'MSE = $(l-1)\left( z+2^{4}(z-1)\right) T\left(\dfrac{d}{D}\right)^2$')]
-
-legend_handles_active_z1 = legend_handles + [Line2D([0], [0], color='black', linestyle='--', label=r'MSE = $(l-1)zT\left(\dfrac{d}{D}\right)^2$')]
-
-
-
-d=4
-l0 = 1
-for active in [True, False]:
-    for z in [1,2,3, 4]:
-
-        fig = plt.figure(figsize=(7, 3*(L-l0+1)))
-        for l in range(l0, L+1):
-            for a_type in ['on', 'x']:
-                if a_type == 'on':
-                    plt.subplot(L-l0+1, 2, 2*(l-l0) + 1)
-                    plt.title(f'On-Indicator, Layer {l}', fontsize=11)
-
-                    if active:
-                        mse = mse_on[z]
-                    else:
-                        mse = mse_on_inactive[z]
-                else:
-                    plt.subplot(L-l0+1, 2, 2*(l-l0) + 2)
-                    plt.title(f'Rotated Vector, Layer {l}', fontsize=11)
-
-                    if active:
-                        mse = mse_x[z]
-                    else:
-                        mse = mse_x_inactive[z]
-
-                if active:
-                    if l==1:
-                        if z>1 and a_type=='x':
-                            for D in Ds:
-                                plt.axhline(y=9*(z-1)*d/D, color=D_colors[D], linestyle=':', linewidth=1)
-                    else:
-                        if z>1 and a_type=='x':
-                            plt.axline((0, 0), slope=(l-1)*(z + 2**4*(z-1)), color='black', linestyle='--', linewidth=1)
-                        elif z==1 and a_type=='x':
-                            plt.axline((0, 0), slope=(l-1)*z, color='black', linestyle='--', linewidth=1)
-
-                else:
-                    for D in Ds:
-                        plt.axhline(y=z*d/D, color=D_colors[D], linestyle=':', linewidth=1)
-                
-
-                for j, (D, T) in enumerate(DTs):
-                    if T > D/d:
-                        marker = 'o'
-                    else:
-                        marker = 'x'
-                    if T*(d/D)**2 < 0.005 or True:
-                        plt.plot(T*(d/D)**2, mse[j][l], marker=marker, linestyle='None', color=D_colors[D])
-                    
-                plt.grid(True)
-                plt.xlabel(r'$T\left(\dfrac{d}{D}\right)^2$')
-                plt.ylabel('MSE')
-                plt.plot([0], [0], linestyle='None')
-
-                if plt.ylim()[1] < plt.xlim()[1] or ((z==1 and active and l<3) and not ideal):
-                    plt.ylim(plt.xlim())
-                        
-                        
-
-        
-        if active:
-            if w_correction is None:
-                fig.suptitle(f'Active Circuits, S={S}, z={z}', fontsize=16)
-            else:
-                fig.suptitle(f'Active Circuits, S={S}, z={z}, '+r'$\chi \leftarrow$' + f'{w_correction}' + r'$\chi$', fontsize=16)
-
-
-            if z==1:
-                handles = legend_handles_active_z1
-            else:
-                handles = legend_handles_active
-        else:
-            if w_correction is None:
-                fig.suptitle(f'Inactive Circuits, S={S}, z={z}', fontsize=16)
-            else:
-                fig.suptitle(f'Inactive Circuits, S={S}, z={z}, '+r'$\chi \leftarrow$' + f'{w_correction}' + r'$\chi$', fontsize=16)
-            handles = legend_handles_inactive
-
-        fig.legend(handles = handles, bbox_to_anchor=(1.05, 0.95), loc='upper left', borderaxespad=0.)
-        plt.tight_layout()
-        plt.show()
 # %%
-#Ploting MSE for various D and T, all z and l in one figure
+#Ploting MSE for various D and T, all z and l 
+#Figures 8, 9, 10, and 11 in LW post
 
 
 import matplotlib.patches as mpatches
@@ -595,13 +484,8 @@ D_colors = {800:'C0', 1000:'C1', 1200:'C2', 1400:'C3', 1600:'C4', 1800:'C5', 200
 Ds = sorted(list(set([D for D, T in DTs])))
 
 
-
-
-d=4
-active = True
-
-a_type = 'on'
-l0 = 1
+d=4 # Number of neruons in each small circuit
+l0 = 1 # First layer to plot (skipp layer zero)
 
 L = 4
 z_max = 4
@@ -626,10 +510,6 @@ for active in [True, False]:
 
                 plt.subplot(L-l0+1, z_max, 1 + (l-l0)*z_max + (z-1))
                 plt.title(f'Layer {l}, z={z}', fontsize=11)
-
-
-
-
                 
 
                 for j, (D, T) in enumerate(DTs):
@@ -722,100 +602,3 @@ for active in [True, False]:
         plt.show()
 # %%
 
-
-xs = [1, 0, -1]
-ys = [0, 1, 0]
-
-
-print('Option 1')
-plt.scatter(xs, ys)
-
-for i in range(len(xs) - 1):
-    dx = xs[i+1] - xs[i]
-    dy = ys[i+1] - ys[i]
-    plt.arrow(xs[i], ys[i], dx, dy,
-              length_includes_head=True,
-              head_width=0.1, head_length=0.15)
-
-plt.axis("equal")
-plt.show()
-
-#%%
-print('Option 2')
-plt.scatter(xs, ys)
-
-for i in range(len(xs) - 1):
-    plt.annotate(
-        "",
-        xy=(xs[i+1], ys[i]),
-        xytext=(xs[i], ys[i]),
-        arrowprops=dict(arrowstyle="-|>-")
-    )
-
-plt.axis("equal")
-plt.show()
-# %%
-
-print('Option 3')
-dx = [xs[i+1] - xs[i] for i in range(len(xs)-1)]
-dy = [ys[i+1] - ys[i] for i in range(len(ys)-1)]
-
-plt.scatter(xs, ys)
-
-plt.quiver(xs[:-1], ys[:-1], dx, dy,
-           angles='xy', scale_units='xy', scale=1)
-
-plt.axis("equal")
-plt.show()
-
-
-print('Option 4')
-from matplotlib.collections import LineCollection
-
-segments = [ [(xs[i], ys[i]), (xs[i+1], ys[i+1])] for i in range(len(xs)-1) ]
-
-lc = LineCollection(segments)
-plt.gca().add_collection(lc)
-
-# Mark points
-plt.scatter(xs, ys)
-
-# Add arrows
-for i in range(len(xs)-1):
-    plt.annotate("",
-                 xy=(xs[i+1], ys[i+1]),
-                 xytext=(xs[i], ys[i]),
-                 arrowprops=dict(arrowstyle="->"))
-
-plt.axis("equal")
-plt.show()
-
-
-
-# %%
-plt.figure(figsize=(6,6))
-
-# Plot points
-plt.plot(xs, ys, label="Points")
-
-for i in range(len(xs) - 1):
-    x1, y1 = xs[i], ys[i]
-    x2, y2 = xs[i+1], ys[i+1]
-
-    # Compute midpoint
-    mx = (x1 + x2) / 2
-    my = (y1 + y2) / 2
-
-    # Arrow only from midpoint to midpoint+tiny step
-    plt.annotate(
-        "",
-        xy=(mx + (x2 - x1)*0.01, my + (y2 - y1)*0.01),  # tiny offset toward the next point
-        xytext=(mx - (x2 - x1)*0.01, my - (y2 - y1)*0.01),
-        arrowprops=dict(arrowstyle="->", lw=1.5)
-    )
-
-plt.title("Arrows in the Middle of Each Line Segment")
-plt.axis("equal")
-plt.grid(True)
-plt.show()
-# %%
