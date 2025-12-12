@@ -11,6 +11,6 @@ Code for 1 can be found in
 Code for 2 is more spread out and can be found in
 * **Slide 5:** random_embeddings.py
 * **Slide 11:** ideal_rot_in_sup.py 
-* **Slide 13:** ?
+* **Slide 13:** step_in_sup.pyj
 
 There are also lots of more code from me just testing stuff that didn't make it into any publication.

@@ -4,8 +4,8 @@ Setting up and running step functions in superpossition.
 
 
 
-#  %% Setup step_in_sup
-#    Setup step_in_sup
+# %%
+# Setup step_in_sup
 
 
 import numpy as np
@@ -43,7 +43,8 @@ class StepSmallCircuits():
 
         self.w = self.mean_w[None, :, :] + self.diff_w
 
-    def run(self, L, z, bs, active_circuits=None):
+    def run(self, L, z, bs, active_circuits=None, *args, **kwargs):
+        # *args and **kwargs are ignored, theire there for compatibility reasons
 
         d = self.d
         T = self.T
@@ -109,11 +110,13 @@ n = 1
 S = 5
 z = 1
 
-correction = None
+u_correction = None
 
 circ = StepSmallCircuits(T)
 
 for split, capped in [(False, False), (True, False), (True, True)]:
+# split = False and split = True is identical for step circuits
+
     for z in [1]:
     #for z in [3, 2, 1]:
 
@@ -126,7 +129,7 @@ for split, capped in [(False, False), (True, False), (True, True)]:
 
         mse = torch.zeros(n, L+1)
         for i in range(n):
-            net = CompInSup(D, L, S, circ, u_correction=correction)
+            net = CompInSup(D, L, S, circ, u_correction=u_correction)
             run = net.run(L, z, bs, capped=capped, split=split)
             a = 1
             est_a = run.est_a[:,:,:,0] - run.est_a[:,:,:,1]
@@ -170,7 +173,7 @@ n = 1
 S = 5
 z = 1
 
-correction = None
+u_correction = None
 
 circ = StepSmallCircuits(T)
 
@@ -182,19 +185,19 @@ for is_active in [True, False]:
 
     for z in [2,1]:
         for S in [5,3]:
-            for capped, correction in [(False, None), (True, 0)]:
+            for capped, u_correction in [(False, None), (True, 0)]:
 
                 if capped:
                     label = f'z={z}, S={S}, capped W'
-                elif correction is None:
+                elif u_correction is None:
                     label = f'z={z}, S={S}, balanced U'
-                elif correction == 0:
+                elif u_correction == 0:
                     label = f'z={z}, S={S}, no correction'
                 else:
                     label = '?'
 
                 for i in range(n):
-                    net = CompInSup(D, L, S, circ, correction=correction)
+                    net = CompInSup(D, L, S, circ, u_correction=u_correction)
                     run = net.run(L, z, bs, capped=capped)
 
                     if is_active:
@@ -282,7 +285,7 @@ n = 1
 S = 5
 z = 1
 
-correction = None
+u_correction = None
 
 circ = StepSmallCircuits(T)
 
@@ -294,19 +297,19 @@ for is_active in [True, False]:
 
     for z in [2,1]:
         for S in [5,3]:
-            for capped, correction in [(False, None), (True, 0)]:
+            for capped, u_correction in [(False, None), (True, 0)]:
             
                 if capped:
                     label = f'z={z}, S={S}, capped W'
-                elif correction is None:
+                elif u_correction is None:
                     label = f'z={z}, S={S}, balanced U'
-                elif correction == 0:
+                elif u_correction == 0:
                     label = f'z={z}, S={S}, no correction'
                 else:
                     label = '?'
 
                 for i in range(n):
-                    net = CompInSup(D, L, S, circ, correction=correction)
+                    net = CompInSup(D, L, S, circ, u_correction=u_correction)
                     run = net.run(L, z, bs, capped=capped)
 
                     if is_active:
@@ -394,10 +397,10 @@ n = 1
 plt.figure(figsize=(10, 5))
 for z in [2,1]:
     for S in [5,4,3]:
-        for capped, correction in [(False, None), (True, None)]:
+        for capped, u_correction in [(False, None), (True, None)]:
 
             circ = StepSmallCircuits(T)
-            net = CompInSup(D, L, S, circ, correction=correction)
+            net = CompInSup(D, L, S, circ, u_correction=u_correction)
             run = net.run(L, z, bs, capped=capped)
 
             unemb = net.unemb
@@ -518,7 +521,7 @@ plt.show()
 
 
 # %%
-# Plot for talk
+# Plot for talk (didn't use it in the end)
 
 D = 800
 T = 1000
@@ -530,7 +533,7 @@ L = 6
 Dod = D // 2
 b = 0
 capped = True
-correction = None
+u_correction = None
 
 n = 40
 bins = [(i/(n-1)-0.5)*4 for i in range(n)] 
@@ -538,7 +541,7 @@ reduced_bs = 800
 
 
 circ = StepSmallCircuits(T)
-net = CompInSup(D, L, S, circ, correction=correction)
+net = CompInSup(D, L, S, circ, u_correction=u_correction)
 run = net.run(L, z, bs, capped=capped)
 
 
