@@ -1,4 +1,15 @@
-#%% Set up
+# A bunch of experimenting with running rotations in superposition using
+# the general CompInSup architecture described in the LW post.
+# 
+# A lot of thes mini experiments are using the d=3 version of the RotSmallCircuits, 
+# which is inherently unstable, and therefore not a good choice. But it took some 
+# testing before I realised this.
+#
+# You'll finde better results, also unsing the general CompInSup architecture is in the
+# newer notebooks step_in_sup.py and plots_for_post.py
+#
+# 
+# %% Set up
 #   Set up
 
 from code import interact
@@ -480,7 +491,7 @@ b = 0.5
 
 u_correction = 1/(Dod-S)
 
-circ = RotSmallCircuits(T, b)
+circ = RotSmallCircuits(T, b, 3)
 net = CompInSup(D, L, S, circ, u_correction=u_correction)
 run = net.run(L, z, bs)
 
@@ -581,7 +592,7 @@ print(f"Probability of overlap: {p:.4f}")
 u_correction = p/((S-p)*S)
 print(f"Correction: {u_correction:.4f}")
 
-circ = RotSmallCircuits(T, b)
+circ = RotSmallCircuits(T, b, 3)
 net = CompInSup(D, L, S, circ, u_correction=u_correction)
 run = net.run(L, z, bs)
 print(run.est_a[:,:,0,0].mean((-1)))
@@ -590,7 +601,7 @@ print(f"Frequency of overlap: {f:.4f}")
 u_correction = f/((S-f)*S)
 print(f"Correction: {u_correction:.4f}")
 
-circ = RotSmallCircuits(T, b)
+circ = RotSmallCircuits(T, b, 3)
 net = CompInSup(D, L, S, circ, u_correction=u_correction)
 run = net.run(L, z, bs)
 print(run.est_a[:,:,0,0].mean((-1)))
@@ -598,7 +609,7 @@ print(run.est_a[:,:,0,0].mean((-1)))
 print("Correction = 1/(Dod-S)")
 u_correction = 1/(Dod-S)
 print(f"Correction: {u_correction:.4f}")
-circ = RotSmallCircuits(T, b)
+circ = RotSmallCircuits(T, b, 3)
 net = CompInSup(D, L, S, circ, u_correction=u_correction)
 run = net.run(L, z, bs)
 print(run.est_a[:,:,0,0].mean((-1)))
@@ -673,12 +684,12 @@ nets = []
 capped = True
 expected = None
 
-circ = RotSmallCircuits(T, b)
+circ = RotSmallCircuits(T, b, 3)
 
 for L in [2,3]:
     
-    net = CompInSup(D, L, S, circ, u_correction=u_correction, capped=capped)
-    run = net.run(L, z, bs)
+    net = CompInSup(D, L, S, circ, u_correction=u_correction)
+    run = net.run(L, z, bs, capped=capped)
 
     nets.append(net)
     runs.append(run)
@@ -686,7 +697,7 @@ for L in [2,3]:
 
 title = ''
 
-plot_mse(labels, runs, title, expected)
+plot_mse_rot(L, labels, runs, title, expected)
 # %%
 
 
@@ -762,10 +773,10 @@ z = 2
 bs = 200//z
 L = 6
 Dod = D // 3
-b = 0.0
+b = 0
 
-circ = RotSmallCircuits(T, b)
-net = CompInSup(D, L, S, circ, capped=True)
+circ = RotSmallCircuits(T, b, 3)
+net = CompInSup(D, L, S, circ)
 run = net.run(L, z, bs, capped=True)
 
 est_a = run.est_a
@@ -778,12 +789,12 @@ for i in range(z):
 plt.grid(True)
 plt.xlabel('Active Circuits On-Indicator')
 plt.ylabel('Layer')
-plt.title(f'D={D}, D/d = {Dod}, T={T}, L={L}, z={z}, bs={bs}, S={S}, b={b}')
+plt.title(f'D={D}, D/d = {Dod}, T={T}, L={L}, z={z}, bs={bs}, S={S}, b={b}, d={d}')
 #plt.show()
 
 
 
-net = CompInSup(D, L, S, circ, capped=False)
+net = CompInSup(D, L, S, circ)
 run = net.run(L, z, bs, capped=False)
 
 est_a = run.est_a
