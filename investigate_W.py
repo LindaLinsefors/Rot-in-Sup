@@ -1,6 +1,13 @@
-#%% Set up
-#   Set up
+# This notebook was used for investiating some properties of the
+# large network wight matrix W, in order to support the error analysis
 
+# Seach for "Plot for post" to find the code for generate the figures
+# in the Appendix 2 of the LW post.
+
+# %%
+# Set up
+
+#
 from code import interact
 import numpy as np
 import matplotlib.pyplot as plt
