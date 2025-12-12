@@ -52,9 +52,9 @@ from classes_and_functions import (RotSmallCircuits_3d,
                                    RotSmallCircuits)
 
 
-# Fake import of RunData
-# Fake import of RotSmallCircuits
 
+# These two classes, IdealRotInSup and IdealCompInSup, are the same as running
+# normal RotInSup and CompInSup networks, with the input ideal=True.
 class IdealRotInSup:
     def __init__(self, Dod, L, S, small_circuits, u_correction=None):
         self.Dod = Dod
@@ -379,7 +379,7 @@ L = 4
 Dod = D // 3
 b = 1
 
-circ = RotSmallCircuits(T, b)
+circ = RotSmallCircuits(T, b, 3)
 
 version = 'Ideal Comp-in-Sup'
 
@@ -425,69 +425,10 @@ plt.legend()
 plt.title(f'{version}\n Dod={Dod}, T={T}, S={S}, z={z}, bs={bs}, b={b}')
 
 plt.show()
-#%%
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-#%% 
-
-
-from ipywidgets import interact
-def f(x, y):
-    return x+y
-interact(f, x=10, y=20)
 # %%
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+# Generate active errors
 
 D = 800
 T = 1000
@@ -501,12 +442,13 @@ b = 0
 u_correction = 0
 
 
-circ = RotSmallCircuits(T, b)
+circ = RotSmallCircuits(T, b, 3)
 net = IdealRotInSup(Dod, L, S, circ, u_correction)
 run = net.run(z, bs)
 
 
 # %%
+# Plot active error distirbution
 
 active_error = run.est_x - run.x
 for l in [2,4]:
@@ -516,7 +458,7 @@ for l in [2,4]:
 
     # Normal curve
     x = np.linspace(-0.4, 0.4, 200)
-    variance = (expected_mse_rot(T, Dod, l, b, z)/2)
+    variance = l/2 * (z-1)/Dod + (l-1)/2 * z*T/(Dod**2)
     pdf = norm.pdf(x, loc=0, scale=variance**0.5)
     plt.plot(x, pdf, label=f'Normal, sigma^2={variance:.4f}')
 
@@ -524,13 +466,14 @@ plt.legend()
 plt.title(f'Error distribution for active circuits\n D={D}, dT={2*T}, S={S}, z={z}, batch size={bs}')    
 plt.show()
 # %%
+# Generate inactive errors
 
 reduced_bs = bs
 
 active = run.active_circuits[:reduced_bs]
 inactive = get_inactive_circuits(active, T)
 unemb = net.unemb
-X = run.no_msk_X[:, :reduced_bs]
+X = run.X[:, :reduced_bs]
 
 inactive_error = torch.zeros(L+1, reduced_bs, T-z, 2)
 
@@ -538,16 +481,17 @@ for l in range(L):
     inactive_error[l+1, :, :, 0] = torch.einsum('btn,bn->bt', unemb[l, inactive], X[l+1, :, :Dod]) 
     inactive_error[l+1, :, :, 1] = torch.einsum('btn,bn->bt', unemb[l, inactive], X[l+1, :, Dod:])
 
-#%%
+# %%
+# Plot inactive error distirbution
 
-for l in [2,3]:
+for l in [2,4]:
 
     mse = inactive_error[l].pow(2).mean().item()
     plt.hist(inactive_error[l].flatten().cpu().numpy(), bins=100, density=True, alpha=0.5, label=f'layer {l}, MSE={mse:.4f}')
 
     # Normal curve
     x = np.linspace(-0.5, 0.5, 200)
-    variance = (expected_mse_rot(T, Dod, 1, b, z+1)/2)
+    variance = 1/2 * z/Dod
     pdf = norm.pdf(x, loc=0, scale=variance**0.5)
     plt.plot(x, pdf, label=f'Normal, sigma^2={variance:.4f}')
 
@@ -555,8 +499,9 @@ plt.legend()
 plt.title(f'Error distribution for inactive circuits\n D={D}, dT={2*T}, S={S}, z={z}, batch size={bs}')    
 plt.show()
 
-
-for l in [2,3]:
+# %%
+# Zoomed in plot inactive error distirbution
+for l in [2,4]:
 
     mse = inactive_error[l].pow(2).mean().item()
     plt.hist(inactive_error[l].flatten().cpu().numpy(), bins=100, density=True, alpha=0.5, label=f'layer {l}, MSE={mse:.4f}')
@@ -572,7 +517,7 @@ plt.legend()
 plt.title(f'Error distribution for inactive circuits\n D={D}, dT={2*T}, S={S}, z={z}, batch size={reduced_bs}')    
 plt.show()
 # %%
-
+# Even more zoomed in plot inactive error distirbution
 
 for l in [2,4]:
 
