@@ -9,7 +9,7 @@ Code for 1 can be found in
 * **Figures in Appendix 2:** investigate_W.py or plots_for_post_appendix 
 
 Code for 2 is more spread out and can be found in
-* **Slide 5:** ?
+* **Slide 5:** random_embeddings.py
 * **Slide 11:** ideal_rot_in_sup.py 
 * **Slide 13:** ?
 

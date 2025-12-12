@@ -1,5 +1,8 @@
-#%% Set up
-#   Set up
+# This notebook was used to investigae some confusions I had
+# at some point. I no longer remember what it was about.
+# 
+# %% 
+# Set up
 
 from code import interact
 import numpy as np

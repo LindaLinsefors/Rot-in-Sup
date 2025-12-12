@@ -1,4 +1,7 @@
-#%%
+# Investigating and plotting the distribution of the dot product
+# of random vectors in various dimensional spaces.
+
+# %%
 # Setup
 
 import torch

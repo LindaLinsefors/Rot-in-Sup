@@ -10,6 +10,11 @@ bringing the neurons per circuit up to d=4.
 
 RotInSupNetwork_3d uses one 'on' indicator for each small network
 bringing the neurons per circuit up to d=3, at the cost of higer error.
+
+Both these implementation are diffrent from the ones pressented in the LW post. 
+These implementation are more optimised for this small circuit rotation task, 
+rather than using a more general framework.
+
 '''
 
 
