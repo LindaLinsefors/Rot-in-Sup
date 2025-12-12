@@ -1,8 +1,11 @@
 """
 Assignments for circuits in a superposition
 
-This module contains functions for generating and testing assignments
-for circuits in superposition networks.
+This module contains functions for generating and testing 
+assignments for circuits in superposition networks.
+
+These assigments define which small circuits uses whcih neurons 
+in the large network.
 """
 
 import torch

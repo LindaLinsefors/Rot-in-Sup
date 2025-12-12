@@ -8,8 +8,8 @@ Second cell resets it back to original.
 Coded up by Gurkenglas, and slighty modified by me.
 '''
 
-#%% Customizing the __repr__ method of torch.Tensor to save images 
-#   Customizing the __repr__ method of torch.Tensor to save images
+# %% 
+# Customizing the __repr__ method of torch.Tensor to save images
 
 import torch
 import matplotlib.pyplot as plt
@@ -38,10 +38,12 @@ def custom_repr(self):
         return f"shape={list(self.shape)}, mean={mean:.5} \n{original_repr(self)}"
 
 torch.Tensor.__repr__ = custom_repr
-#%% Resetting the __repr__ method
-#   Resetting the __repr__ method
+# %% 
+# Resetting the __repr__ method
 try:
     torch.Tensor.__repr__ = original_repr
 except:
     pass
 # %%
+
+

@@ -1,5 +1,11 @@
-#%% Reload classes_and_functions
-#   Reload classes_and_functions
+# Ths code defines classes and functions for creating and running
+# compositional networks that embed multiple small circuits into 
+# one larger network. 
+
+# Additionally there are some functions for plotting the results.
+# 
+# %% 
+# Reload classes_and_functions
 
 import numpy as np
 import matplotlib.pyplot as plt
